@@ -17,7 +17,9 @@ composer require wp-media/mcp-oauth
 
 ## Usage
 
-Boot the library from your plugin's main file, no later than `plugins_loaded`:
+Boot the library from your plugin's main file. Calling it on `plugins_loaded`
+is recommended; the hard requirement is that it runs no later than
+`rest_api_init` priority 15 (when the MCP adapter registers its servers):
 
 ```php
 add_action( 'plugins_loaded', static function () {
