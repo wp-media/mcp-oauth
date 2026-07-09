@@ -1,9 +1,9 @@
 {
-    "name"          : "wp-media/package-template",
-    "description"   : "WordPress plugin template for WP Media.",
-    "type"          : "wordpress-plugin",
+    "name"          : "wp-media/mcp-oauth",
+    "description"   : "MCP OAuth layer for the WordPress MCP Adapter",
+    "type"          : "library",
     "keywords"      : ["wordpress", "wp", "plugin"],
-    "homepage"      : "https://github.com/wp-media/package-template",
+    "homepage"      : "https://github.com/wp-media/mcp-oauth",
     "license"       : "GPL-2.0+",
     "authors"       : [
         {
@@ -14,18 +14,13 @@
 	"config": {
 		"sort-packages": true,
         "allow-plugins": {
-			"composer/installers": true,
             "dealerdirect/phpcodesniffer-composer-installer": true,
 			"phpstan/extension-installer": true
         }
     },
     "require": {
         "php" : ">=7.4",
-		"composer/installers": "^2.0",
-		"league/container": "^4.0",
-		"wp-media/apply-filters-typed": "^1.0",
-		"wp-media/event-manager": "^4.0",
-		"wp-media/options": "^4.0"
+		"wp-media/apply-filters-typed": "^1.0"
     },
     "require-dev": {
 		"php": ">=7.4",
@@ -40,21 +35,14 @@
 		"wp-coding-standards/wpcs": "^3",
 		"wp-media/phpunit": "^3"
     },
-	"suggest": {
-		"berlindb/core": "Provide ORM-like experience and interface to WordPress database tables.",
-		"brianhenryie/strauss": "Prefix PHP namespaces and classnames to allow multiple versions of libraries to exist without conflict.",
-		"stellarwp/admin-notices": "A handy package for easily displaying admin notices in WordPress with simple to complex visibility conditions.",
-		"woocommerce/action-scheduler": "Provides a robust background job queue for WordPress.",
-		"wp-media/wp-mixpanel": "Easily integrate Mixpanel analytics into your WordPress project."
-	},
     "autoload": {
 		"psr-4": {
-			"WPMedia\\PackageTemplate\\": "inc/"
+			"WPMedia\\MCP\\OAuth\\": "inc/"
 		}
 	},
 	"autoload-dev": {
 		"psr-4": {
-			"WPMedia\\PackageTemplate\\Tests\\": "Tests/"
+			"WPMedia\\MCP\\OAuth\\Tests\\": "Tests/"
 		}
 	},
 	"scripts": {
