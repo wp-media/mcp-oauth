@@ -14,10 +14,14 @@ declare(strict_types=1);
 
 namespace WPMedia\MCP\OAuth\Auth\Discovery;
 
+use WPMedia\MCP\OAuth\Auth\Http404Trait;
 use WPMedia\MCP\OAuth\Auth\McpLogger;
 use WPMedia\MCP\OAuth\Context;
 
 class Endpoints {
+
+	use Http404Trait;
+
 	/**
 	 * Query var name used to route discovery requests.
 	 */
@@ -135,21 +139,5 @@ class Endpoints {
 			McpLogger::log( 'DISCOVERY', 'serving authorization-server document', $body );
 			wp_send_json( $body );
 		}
-	}
-
-	/**
-	 * Force a clean 404 response.
-	 *
-	 * Used when a stale rewrite rule still routes a request to this endpoint
-	 * after the OAuth server has been disabled, before rewrite rules have
-	 * been flushed. Without this, WordPress's main query would fall through
-	 * to the homepage instead of returning a 404.
-	 *
-	 * @return void
-	 */
-	private function force_404(): void {
-		global $wp_query;
-		$wp_query->set_404();
-		status_header( 404 );
 	}
 }
