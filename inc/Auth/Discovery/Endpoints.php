@@ -14,33 +14,43 @@ declare(strict_types=1);
 
 namespace WPMedia\MCP\OAuth\Auth\Discovery;
 
-use WP_Rocket\Engine\Activation\ActivationInterface;
 use WPMedia\MCP\OAuth\Auth\McpLogger;
+use WPMedia\MCP\OAuth\Context;
 
-class Endpoints implements ActivationInterface {
+class Endpoints {
 	/**
 	 * Query var name used to route discovery requests.
 	 */
 	const QUERY_VAR = 'mcp_oauth_discovery';
 
 	/**
-	 * Registers this class's activation callback.
+	 * OAuth server context.
 	 *
-	 * @return void
+	 * @var Context
 	 */
-	public function activate() {
-		add_action( 'rocket_activation', [ $this, 'add_rewrite_rules' ] );
+	private Context $context;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Context $context OAuth server context.
+	 */
+	public function __construct( Context $context ) {
+		$this->context = $context;
 	}
 
 	/**
 	 * Register rewrite rules for the .well-known paths.
 	 *
-	 * Called both on the 'init' action (normal requests) and directly during
-	 * plugin activation before flush_rewrite_rules().
+	 * Called on the 'init' action.
 	 *
 	 * @return void
 	 */
 	public function add_rewrite_rules(): void {
+		if ( ! $this->context->is_enabled() ) {
+			return;
+		}
+
 		add_rewrite_rule(
 			'^\\.well-known/oauth-protected-resource$',
 			'index.php?' . self::QUERY_VAR . '=protected-resource',
@@ -59,7 +69,7 @@ class Endpoints implements ActivationInterface {
 	 * @param string[] $vars Existing query vars.
 	 * @return string[] Modified list.
 	 */
-	public function add_oauth_query_vars( array $vars ): array {
+	public function add_query_vars( array $vars ): array {
 		$vars[] = self::QUERY_VAR;
 
 		return $vars;
@@ -74,6 +84,11 @@ class Endpoints implements ActivationInterface {
 		$discovery = (string) get_query_var( self::QUERY_VAR, '' );
 
 		if ( '' === $discovery ) {
+			return;
+		}
+
+		if ( ! $this->context->is_enabled() ) {
+			$this->force_404();
 			return;
 		}
 
@@ -120,5 +135,21 @@ class Endpoints implements ActivationInterface {
 			McpLogger::log( 'DISCOVERY', 'serving authorization-server document', $body );
 			wp_send_json( $body );
 		}
+	}
+
+	/**
+	 * Force a clean 404 response.
+	 *
+	 * Used when a stale rewrite rule still routes a request to this endpoint
+	 * after the OAuth server has been disabled, before rewrite rules have
+	 * been flushed. Without this, WordPress's main query would fall through
+	 * to the homepage instead of returning a 404.
+	 *
+	 * @return void
+	 */
+	private function force_404(): void {
+		global $wp_query;
+		$wp_query->set_404();
+		status_header( 404 );
 	}
 }

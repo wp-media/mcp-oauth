@@ -11,12 +11,10 @@ declare( strict_types=1 );
 
 namespace WPMedia\MCP\OAuth\Auth;
 
-use WP_Rocket\Engine\Activation\ActivationInterface;
-
 /**
  * Registers OAuth endpoint rewrite rules and the query var used to route them.
  */
-class Rewrite implements ActivationInterface {
+class Rewrite {
 
 	/**
 	 * WordPress query var used to route OAuth endpoint requests.
@@ -24,19 +22,9 @@ class Rewrite implements ActivationInterface {
 	const OAUTH_QUERY_VAR = 'mcp_oauth_endpoint'; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound
 
 	/**
-	 * Registers this class's activation callback.
-	 *
-	 * @return void
-	 */
-	public function activate() {
-		add_action( 'rocket_activation', [ $this, 'register_oauth_rewrite_rules' ] );
-	}
-
-	/**
 	 * Register WordPress rewrite rules for all five OAuth endpoints.
 	 *
-	 * Called both on the 'init' action (normal page load) and during plugin
-	 * activation to ensure rules are present before flush_rewrite_rules().
+	 * Called on the 'init' action (normal page load).
 	 *
 	 * @return void
 	 */

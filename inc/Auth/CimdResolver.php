@@ -176,7 +176,7 @@ class CimdResolver {
 					'client_id' => $url,
 					'status'    => $status,
 				]
-				);
+			);
 			return null;
 		}
 
@@ -189,7 +189,7 @@ class CimdResolver {
 					'client_id' => $url,
 					'bytes'     => strlen( $body ),
 				]
-				);
+			);
 			return null;
 		}
 
@@ -203,7 +203,7 @@ class CimdResolver {
 					'content_type' => $content_type,
 				],
 				true
-				);
+			);
 		}
 
 		$doc = json_decode( $body, true );
@@ -236,7 +236,7 @@ class CimdResolver {
 					'client_id'          => $url,
 					'document_client_id' => $doc_client_id,
 				]
-				);
+			);
 			return null;
 		}
 
@@ -250,7 +250,7 @@ class CimdResolver {
 					'client_id' => $url,
 					'method'    => $auth_method,
 				]
-				);
+			);
 			return null;
 		}
 
@@ -286,7 +286,7 @@ class CimdResolver {
 					'client_id'   => $url,
 					'grant_types' => $requested_grants,
 				]
-				);
+			);
 			return null;
 		}
 
