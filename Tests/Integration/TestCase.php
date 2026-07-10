@@ -1,7 +1,7 @@
 <?php
 declare( strict_types=1 );
 
-namespace WPMedia\PackageTemplate\Tests\Integration;
+namespace WPMedia\MCP\OAuth\Tests\Integration;
 
 use ReflectionObject;
 use WPMedia\PHPUnit\Integration\TestCase as BaseTestCase;
