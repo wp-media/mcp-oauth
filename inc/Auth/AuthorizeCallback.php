@@ -46,12 +46,12 @@ class AuthorizeCallback {
 
 		if ( ! is_user_logged_in() ) {
 			McpLogger::log( 'CALLBACK', 'rejected: user not logged in' );
-			wp_die( esc_html__( 'You must be logged in to authorise an MCP session.', 'rocket' ), esc_html__( 'OAuth Error', 'rocket' ), [ 'response' => 401 ] );
+			wp_die( esc_html__( 'You must be logged in to authorise an MCP session.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 401 ] );
 		}
 
 		if ( '' === $state ) {
 			McpLogger::log( 'CALLBACK', 'rejected: missing state' );
-			wp_die( esc_html__( 'Missing state parameter.', 'rocket' ), esc_html__( 'OAuth Error', 'rocket' ), [ 'response' => 400 ] );
+			wp_die( esc_html__( 'Missing state parameter.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
 		$state_key  = 'mcp_oauth_state_' . $state;
@@ -59,7 +59,7 @@ class AuthorizeCallback {
 
 		if ( false === $state_data || ! is_array( $state_data ) ) {
 			McpLogger::log( 'CALLBACK', 'rejected: state transient not found or expired', [ 'state' => $state ] );
-			wp_die( esc_html__( 'Invalid or expired state. Please restart the authorization flow.', 'rocket' ), esc_html__( 'OAuth Error', 'rocket' ), [ 'response' => 400 ] );
+			wp_die( esc_html__( 'Invalid or expired state. Please restart the authorization flow.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
 		// Client display data was captured and validated by AuthorizeEndpoint and
@@ -124,7 +124,7 @@ class AuthorizeCallback {
 		<head>
 			<meta charset="<?php bloginfo( 'charset' ); ?>">
 			<meta name="viewport" content="width=device-width, initial-scale=1">
-			<title><?php echo esc_html( __( 'Authorize Access', 'rocket' ) . ' — ' . $site_name ); ?></title>
+			<title><?php echo esc_html( __( 'Authorize Access', 'mcp-oauth' ) . ' — ' . $site_name ); ?></title>
 			<style>
 				*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 				body {
@@ -218,7 +218,7 @@ class AuthorizeCallback {
 		</head>
 		<body>
 			<div class="consent-card">
-				<h1><?php esc_html_e( 'Authorize access to your site?', 'rocket' ); ?></h1>
+				<h1><?php esc_html_e( 'Authorize access to your site?', 'mcp-oauth' ); ?></h1>
 
 				<div class="client-block">
 					<div class="client-name">
@@ -230,7 +230,7 @@ class AuthorizeCallback {
 					</div>
 					<?php if ( '' !== $client_id ) : ?>
 						<div class="client-url">
-							<?php esc_html_e( 'ID:', 'rocket' ); ?>
+							<?php esc_html_e( 'ID:', 'mcp-oauth' ); ?>
 							<a href="<?php echo esc_url( $client_id ); ?>" rel="noopener noreferrer" target="_blank"><?php echo esc_html( $client_id ); ?></a>
 						</div>
 					<?php endif; ?>
@@ -238,7 +238,7 @@ class AuthorizeCallback {
 						<div class="verified-badge">
 							<?php
 							/* translators: %s: publisher name */
-							printf( esc_html__( 'Verified publisher: %s', 'rocket' ), esc_html( $publisher ) );
+							printf( esc_html__( 'Verified publisher: %s', 'mcp-oauth' ), esc_html( $publisher ) );
 							?>
 						</div>
 					<?php endif; ?>
@@ -248,7 +248,7 @@ class AuthorizeCallback {
 					<?php
 					printf(
 						/* translators: 1: client name, 2: site name */
-						esc_html__( '%1$s is requesting access to the WP Rocket MCP tools on %2$s on your behalf.', 'rocket' ),
+						esc_html__( '%1$s is requesting access to the MCP tools on %2$s on your behalf.', 'mcp-oauth' ),
 						'<strong>' . esc_html( $client_name ) . '</strong>',
 						'<strong>' . esc_html( $site_name ) . '</strong>'
 					);
@@ -260,10 +260,10 @@ class AuthorizeCallback {
 					<?php wp_nonce_field( 'mcp_consent_' . $state, 'mcp_consent_nonce' ); ?>
 					<div class="consent-actions">
 						<button type="submit" name="mcp_action" value="allow" class="btn btn-allow">
-							<?php esc_html_e( 'Allow', 'rocket' ); ?>
+							<?php esc_html_e( 'Allow', 'mcp-oauth' ); ?>
 						</button>
 						<button type="submit" name="mcp_action" value="deny" class="btn btn-deny">
-							<?php esc_html_e( 'Deny', 'rocket' ); ?>
+							<?php esc_html_e( 'Deny', 'mcp-oauth' ); ?>
 						</button>
 					</div>
 				</form>

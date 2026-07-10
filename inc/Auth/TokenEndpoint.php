@@ -271,7 +271,7 @@ class TokenEndpoint {
 				'user_id'       => $user_id,
 				'app_pass_uuid' => $app_pass_uuid,
 			]
-			);
+		);
 
 		// Revocation check: if the Application Password was deleted the session is gone.
 		$app_pass = \WP_Application_Passwords::get_user_application_password( $user_id, $app_pass_uuid );
@@ -286,7 +286,7 @@ class TokenEndpoint {
 					'user_id'       => $user_id,
 					'app_pass_uuid' => $app_pass_uuid,
 				]
-				);
+			);
 			$this->send_error( 401, 'invalid_token', 'MCP session has been revoked.' );
 			return;
 		}
@@ -325,7 +325,7 @@ class TokenEndpoint {
 				'user_id'       => $user_id,
 				'app_pass_uuid' => $app_pass_uuid,
 			]
-			);
+		);
 
 		// Issue a new access token and rotate the refresh token: issue_token_pair()
 		// mints a fresh jti and overwrites the stored marker, invalidating the

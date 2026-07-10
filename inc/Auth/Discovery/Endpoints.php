@@ -14,33 +14,47 @@ declare(strict_types=1);
 
 namespace WPMedia\MCP\OAuth\Auth\Discovery;
 
-use WP_Rocket\Engine\Activation\ActivationInterface;
+use WPMedia\MCP\OAuth\Auth\Http404Trait;
 use WPMedia\MCP\OAuth\Auth\McpLogger;
+use WPMedia\MCP\OAuth\Context;
 
-class Endpoints implements ActivationInterface {
+class Endpoints {
+
+	use Http404Trait;
+
 	/**
 	 * Query var name used to route discovery requests.
 	 */
 	const QUERY_VAR = 'mcp_oauth_discovery';
 
 	/**
-	 * Registers this class's activation callback.
+	 * OAuth server context.
 	 *
-	 * @return void
+	 * @var Context
 	 */
-	public function activate() {
-		add_action( 'rocket_activation', [ $this, 'add_rewrite_rules' ] );
+	private Context $context;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Context $context OAuth server context.
+	 */
+	public function __construct( Context $context ) {
+		$this->context = $context;
 	}
 
 	/**
 	 * Register rewrite rules for the .well-known paths.
 	 *
-	 * Called both on the 'init' action (normal requests) and directly during
-	 * plugin activation before flush_rewrite_rules().
+	 * Called on the 'init' action.
 	 *
 	 * @return void
 	 */
 	public function add_rewrite_rules(): void {
+		if ( ! $this->context->is_enabled() ) {
+			return;
+		}
+
 		add_rewrite_rule(
 			'^\\.well-known/oauth-protected-resource$',
 			'index.php?' . self::QUERY_VAR . '=protected-resource',
@@ -59,7 +73,7 @@ class Endpoints implements ActivationInterface {
 	 * @param string[] $vars Existing query vars.
 	 * @return string[] Modified list.
 	 */
-	public function add_oauth_query_vars( array $vars ): array {
+	public function add_query_vars( array $vars ): array {
 		$vars[] = self::QUERY_VAR;
 
 		return $vars;
@@ -74,6 +88,11 @@ class Endpoints implements ActivationInterface {
 		$discovery = (string) get_query_var( self::QUERY_VAR, '' );
 
 		if ( '' === $discovery ) {
+			return;
+		}
+
+		if ( ! $this->context->is_enabled() ) {
+			$this->force_404();
 			return;
 		}
 

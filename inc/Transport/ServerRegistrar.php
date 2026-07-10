@@ -8,7 +8,7 @@ use WP\MCP\Abilities\ExecuteAbilityAbility;
 use WP\MCP\Abilities\GetAbilityInfoAbility;
 use WPMedia\MCP\OAuth\Context;
 
-class Subscriber {
+class ServerRegistrar {
 	/**
 	 * MCP server instance.
 	 *
@@ -32,19 +32,6 @@ class Subscriber {
 	public function __construct( Server $server, Context $context ) {
 		$this->server  = $server;
 		$this->context = $context;
-	}
-
-	/**
-	 * Get the subscribed events.
-	 *
-	 * @return array<string, string|array>
-	 */
-	public static function get_subscribed_events(): array {
-		return [
-			'wp_abilities_api_categories_init' => 'ensure_default_category',
-			'wp_abilities_api_init'            => 'ensure_shared_abilities_registered',
-			'mcp_adapter_init'                 => 'register_server',
-		];
 	}
 
 	/**

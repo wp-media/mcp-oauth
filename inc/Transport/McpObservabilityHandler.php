@@ -2,7 +2,7 @@
 /**
  * MCP Observability Handler.
  *
- * Bridges the MCP adapter's observability interface with WP Rocket's existing
+ * Bridges the MCP adapter's observability interface with this library's
  * McpLogger, providing structured request/event metrics without external
  * dependencies. Implements the single-method McpObservabilityHandlerInterface.
  */
@@ -16,7 +16,7 @@ use WP\MCP\Infrastructure\Observability\McpObservabilityHelperTrait;
 use WPMedia\MCP\OAuth\Auth\McpLogger;
 
 /**
- * Observability handler that writes MCP events to the WP Rocket MCP log.
+ * Observability handler that writes MCP events to the MCP OAuth log.
  */
 class McpObservabilityHandler implements McpObservabilityHandlerInterface {
 	use McpObservabilityHelperTrait;

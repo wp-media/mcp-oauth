@@ -1,11 +1,10 @@
 <?php
 /**
- * MCP Auth Subscriber.
+ * MCP Auth Router.
  *
- * Wires the OAuth 2.1 endpoint routing via the WP Rocket event manager
- * instead of directly calling add_action / add_filter. Plugin lifecycle
- * (activation) is handled separately by Rewrite and SecretManager, which
- * implement ActivationInterface.
+ * Wires the OAuth 2.1 endpoint routing. Registered directly by Bootstrap via
+ * add_action()/add_filter() calls. Plugin lifecycle (activation) is handled
+ * separately by Rewrite and SecretManager.
  */
 
 declare( strict_types=1 );
@@ -17,7 +16,9 @@ use WPMedia\MCP\OAuth\Context;
 /**
  * Registers OAuth endpoint routing callbacks.
  */
-class Subscriber {
+class Router {
+
+	use Http404Trait;
 
 	/**
 	 * OAuth rewrite rules and query var registration.
@@ -98,28 +99,13 @@ class Subscriber {
 	}
 
 	/**
-	 * Return the subscribed events.
-	 *
-	 * @return array<string, string|array>
-	 */
-	public static function get_subscribed_events(): array {
-		return [
-			'init'                           => 'register_oauth_rewrite_rules',
-			'query_vars'                     => 'add_oauth_query_vars',
-			'template_redirect'              => 'handle_oauth_request',
-			'wp_delete_application_password' => [ 'purge_refresh_jti_meta', 10, 2 ],
-		];
-	}
-
-	/**
 	 * Register WordPress rewrite rules for all five OAuth endpoints.
 	 *
-	 * Called on the 'init' action (normal page load). Activation registers
-	 * the same rules independently via Rewrite::activate().
+	 * Called on the 'init' action (normal page load).
 	 *
 	 * @return void
 	 */
-	public function register_oauth_rewrite_rules(): void {
+	public function register_rewrite_rules(): void {
 		if ( ! $this->context->is_enabled() ) {
 			return;
 		}
@@ -133,7 +119,7 @@ class Subscriber {
 	 * @param string[] $vars Existing query vars.
 	 * @return string[] Modified list.
 	 */
-	public function add_oauth_query_vars( array $vars ): array {
+	public function add_query_vars( array $vars ): array {
 		return $this->rewrite->add_oauth_query_vars( $vars );
 	}
 
@@ -142,7 +128,7 @@ class Subscriber {
 	 *
 	 * @return void
 	 */
-	public function handle_oauth_request(): void {
+	public function handle_request(): void {
 		$endpoint = (string) get_query_var( Rewrite::OAUTH_QUERY_VAR, '' );
 
 		if ( '' === $endpoint ) {
@@ -172,24 +158,8 @@ class Subscriber {
 				break;
 			default:
 				status_header( 404 );
-				wp_die( esc_html__( 'Unknown OAuth endpoint.', 'rocket' ), '', [ 'response' => 404 ] );
+				wp_die( esc_html__( 'Unknown OAuth endpoint.', 'mcp-oauth' ), '', [ 'response' => 404 ] );
 		}
-	}
-
-	/**
-	 * Force a clean 404 response.
-	 *
-	 * Used when a stale rewrite rule still routes a request to this endpoint
-	 * after the OAuth server has been disabled, before rewrite rules have
-	 * been flushed. Without this, WordPress's main query would fall through
-	 * to the homepage instead of returning a 404.
-	 *
-	 * @return void
-	 */
-	private function force_404(): void {
-		global $wp_query;
-		$wp_query->set_404();
-		status_header( 404 );
 	}
 
 	/**

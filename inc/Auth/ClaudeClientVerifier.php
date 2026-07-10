@@ -97,9 +97,9 @@ class ClaudeClientVerifier {
 		 * @param array<string, array{client_ids: string[], host: string}> $trusted_publishers Trusted-publisher allowlist.
 		 * @return array<string, array{client_ids: string[], host: string}>
 		 */
-		return wpm_apply_filters_typed(
+		$trusted_publishers = wpm_apply_filters_typed(
 			'array',
-			'rocket_mcp_trusted_publishers',
+			'wpmedia_mcp_oauth_trusted_publishers',
 			[
 				'claude' => [
 					'client_ids' => [
@@ -110,6 +110,9 @@ class ClaudeClientVerifier {
 				],
 			]
 		);
+
+		// Back-compat: honor the legacy WP Rocket-era filter name for one deprecation cycle.
+		return wpm_apply_filters_typed( 'array', 'rocket_mcp_trusted_publishers', $trusted_publishers );
 	}
 
 	/**

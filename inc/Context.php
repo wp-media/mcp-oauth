@@ -14,12 +14,15 @@ class Context {
 		/**
 		 * Filters whether the MCP OAuth server is enabled.
 		 *
-		 * When `false`, WP Rocket does not register the OAuth rewrite rules or
-		 * respond to any /oauth/* endpoint or /.well-known discovery request,
+		 * When `false`, the host plugin does not register the OAuth rewrite rules
+		 * or respond to any /oauth/* endpoint or /.well-known discovery request,
 		 * and does not register the MCP OAuth transport server.
 		 *
 		 * @param bool $enabled Whether the MCP OAuth server is enabled. Default false.
 		 */
-		return wpm_apply_filters_typed( 'boolean', 'rocket_mcp_oauth_server_enabled', false );
+		$enabled = wpm_apply_filters_typed( 'boolean', 'wpmedia_mcp_oauth_server_enabled', false );
+
+		// Back-compat: honor the legacy WP Rocket-era filter name for one deprecation cycle.
+		return wpm_apply_filters_typed( 'boolean', 'rocket_mcp_oauth_server_enabled', $enabled );
 	}
 }

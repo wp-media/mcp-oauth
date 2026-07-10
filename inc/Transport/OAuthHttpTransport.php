@@ -23,7 +23,7 @@ use WPMedia\MCP\OAuth\Auth\McpLogger;
 use WPMedia\MCP\OAuth\Auth\SecretManager;
 
 /**
- * OAuth HTTP Transport for the WP Rocket MCP server.
+ * OAuth HTTP Transport for the MCP OAuth server.
  */
 class OAuthHttpTransport implements McpRestTransportInterface {
 	use McpTransportHelperTrait;
@@ -46,7 +46,7 @@ class OAuthHttpTransport implements McpRestTransportInterface {
 	}
 
 	/**
-	 * Register the WP Rocket MCP REST route.
+	 * Register the MCP OAuth REST route.
 	 *
 	 * @return void
 	 */
@@ -158,7 +158,7 @@ class OAuthHttpTransport implements McpRestTransportInterface {
 			return $this->unauthenticated_error( 'invalid_token', 'JWT signature invalid or token expired.' );
 		}
 
-		// Audience must match the WP Rocket MCP REST endpoint.
+		// Audience must match the MCP OAuth REST endpoint.
 		$expected_aud = get_rest_url( null, 'mcp/mcp-oauth-server' );
 		$token_aud    = $claims['aud'] ?? '';
 
@@ -280,7 +280,7 @@ class OAuthHttpTransport implements McpRestTransportInterface {
 
 		return new \WP_Error(
 			'mcp_unauthorized',
-			'' !== $description ? $description : __( 'MCP authentication required.', 'rocket' ),
+			'' !== $description ? $description : __( 'MCP authentication required.', 'mcp-oauth' ),
 			[
 				'status'           => 401,
 				'WWW-Authenticate' => $www_auth,

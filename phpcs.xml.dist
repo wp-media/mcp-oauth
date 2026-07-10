@@ -11,7 +11,6 @@
 
 	<file>inc</file>
 	<file>Tests</file>
-	<file>plugin.php</file>
 	<!-- Ignoring Files and Folders: https://github.com/squizlabs/PHP_CodeSniffer/wiki/Advanced-Usage#ignoring-files-and-folders -->
 
 	<!-- ** HOW TO SCAN ** -->
@@ -36,7 +35,7 @@
     <rule ref="WordPress.WP.I18n">
         <properties>
             <property name="text_domain" type="array">
-				<element value="package-template" />
+				<element value="mcp-oauth" />
 			</property>
         </properties>
     </rule>

@@ -32,12 +32,12 @@ class ConsentEndpoint {
 
 		if ( 'POST' !== $request_method ) {
 			McpLogger::log( 'CONSENT', 'rejected: wrong method', [ 'method' => $request_method ] );
-			wp_die( esc_html__( 'Method not allowed.', 'rocket' ), esc_html__( 'OAuth Error', 'rocket' ), [ 'response' => 405 ] );
+			wp_die( esc_html__( 'Method not allowed.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 405 ] );
 		}
 
 		if ( ! is_user_logged_in() ) {
 			McpLogger::log( 'CONSENT', 'rejected: user not logged in' );
-			wp_die( esc_html__( 'You must be logged in to authorise an MCP session.', 'rocket' ), esc_html__( 'OAuth Error', 'rocket' ), [ 'response' => 401 ] );
+			wp_die( esc_html__( 'You must be logged in to authorise an MCP session.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 401 ] );
 		}
 
 		$state  = sanitize_text_field( wp_unslash( $_POST['state'] ?? '' ) );
@@ -45,7 +45,7 @@ class ConsentEndpoint {
 
 		if ( '' === $state ) {
 			McpLogger::log( 'CONSENT', 'rejected: missing state' );
-			wp_die( esc_html__( 'Missing state parameter.', 'rocket' ), esc_html__( 'OAuth Error', 'rocket' ), [ 'response' => 400 ] );
+			wp_die( esc_html__( 'Missing state parameter.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
 		// Nonce verification (CSRF protection) — must happen before consuming the transient.
@@ -56,7 +56,7 @@ class ConsentEndpoint {
 
 		if ( false === $state_data || ! is_array( $state_data ) ) {
 			McpLogger::log( 'CONSENT', 'rejected: state transient not found or expired', [ 'state' => $state ] );
-			wp_die( esc_html__( 'Your session has expired. Please restart the authorization flow.', 'rocket' ), esc_html__( 'OAuth Error', 'rocket' ), [ 'response' => 400 ] );
+			wp_die( esc_html__( 'Your session has expired. Please restart the authorization flow.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
 		// Atomically consume the state — one-time use only. delete_transient()
@@ -64,7 +64,7 @@ class ConsentEndpoint {
 		// submission cannot mint two auth codes from one consent.
 		if ( ! delete_transient( $state_key ) ) {
 			McpLogger::log( 'CONSENT', 'rejected: state already consumed (concurrent submission)', [ 'state' => $state ] );
-			wp_die( esc_html__( 'Your session has expired. Please restart the authorization flow.', 'rocket' ), esc_html__( 'OAuth Error', 'rocket' ), [ 'response' => 400 ] );
+			wp_die( esc_html__( 'Your session has expired. Please restart the authorization flow.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
 		$redirect_uri = (string) ( $state_data['redirect_uri'] ?? '' );

@@ -72,23 +72,23 @@ class AuthorizeEndpoint {
 
 		if ( '' === $client_id ) {
 			McpLogger::log( 'AUTHORIZE', 'rejected: missing client_id' );
-			wp_die( esc_html__( 'client_id is required.', 'rocket' ), esc_html__( 'OAuth Error', 'rocket' ), [ 'response' => 400 ] );
+			wp_die( esc_html__( 'client_id is required.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
 		$client = $this->resolver->resolve( $client_id );
 		if ( null === $client ) {
 			McpLogger::log( 'AUTHORIZE', 'rejected: client_id could not be resolved via CIMD', [ 'client_id' => $client_id ] );
-			wp_die( esc_html__( 'Unknown OAuth client.', 'rocket' ), esc_html__( 'OAuth Error', 'rocket' ), [ 'response' => 400 ] );
+			wp_die( esc_html__( 'Unknown OAuth client.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
 		if ( empty( $client['verified'] ) ) {
 			McpLogger::log( 'AUTHORIZE', 'rejected: client not a verified publisher', [ 'client_id' => $client_id ] );
-			wp_die( esc_html__( 'This OAuth client is not a verified publisher.', 'rocket' ), esc_html__( 'OAuth Error', 'rocket' ), [ 'response' => 400 ] );
+			wp_die( esc_html__( 'This OAuth client is not a verified publisher.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
 		if ( '' === $redirect_uri ) {
 			McpLogger::log( 'AUTHORIZE', 'rejected: missing redirect_uri' );
-			wp_die( esc_html__( 'redirect_uri is required.', 'rocket' ), esc_html__( 'OAuth Error', 'rocket' ), [ 'response' => 400 ] );
+			wp_die( esc_html__( 'redirect_uri is required.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
 		if ( ! $this->redirect_uri_matches( $redirect_uri, $client['redirect_uris'] ) ) {
@@ -100,7 +100,7 @@ class AuthorizeEndpoint {
 					'registered' => $client['redirect_uris'],
 				]
 			);
-			wp_die( esc_html__( 'redirect_uri does not match registered value.', 'rocket' ), esc_html__( 'OAuth Error', 'rocket' ), [ 'response' => 400 ] );
+			wp_die( esc_html__( 'redirect_uri does not match registered value.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
 		// redirect_uri is now validated — remaining errors may safely redirect to it.
@@ -248,6 +248,6 @@ class AuthorizeEndpoint {
 			exit;
 		}
 
-		wp_die( esc_html( $error ), esc_html__( 'OAuth Error', 'rocket' ), [ 'response' => 400 ] );
+		wp_die( esc_html( $error ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 	}
 }
