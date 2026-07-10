@@ -1,7 +1,7 @@
 <?php
 
 return [
-	'testShouldReturnDefaultWhenNoFilterOverridesIt'                          => [
+	'testShouldReturnDefaultWhenNoFilterOverridesIt'       => [
 		'config'   => [
 			'primary' => null,
 			'legacy'  => null,
@@ -11,7 +11,7 @@ return [
 			'incorrect_usage' => false,
 		],
 	],
-	'testShouldReturnTrueWhenPrimaryFilterEnablesIt'                         => [
+	'testShouldReturnTrueWhenPrimaryFilterEnablesIt'       => [
 		'config'   => [
 			'primary' => true,
 			'legacy'  => null,
@@ -31,7 +31,7 @@ return [
 			'incorrect_usage' => false,
 		],
 	],
-	'testShouldLetLegacyFilterOverridePrimaryFilterResult'                   => [
+	'testShouldLetLegacyFilterOverridePrimaryFilterResult' => [
 		'config'   => [
 			'primary' => true,
 			'legacy'  => false,
@@ -41,7 +41,7 @@ return [
 			'incorrect_usage' => false,
 		],
 	],
-	'testShouldFallBackToDefaultWhenPrimaryFilterReturnsNonBoolean'          => [
+	'testShouldFallBackToDefaultWhenPrimaryFilterReturnsNonBoolean' => [
 		'config'   => [
 			'primary' => 'not-a-boolean',
 			'legacy'  => null,
@@ -51,7 +51,7 @@ return [
 			'incorrect_usage' => true,
 		],
 	],
-	'testShouldFallBackToPrimaryResultWhenLegacyFilterReturnsNonBoolean'     => [
+	'testShouldFallBackToPrimaryResultWhenLegacyFilterReturnsNonBoolean' => [
 		'config'   => [
 			'primary' => true,
 			'legacy'  => 'not-a-boolean',
