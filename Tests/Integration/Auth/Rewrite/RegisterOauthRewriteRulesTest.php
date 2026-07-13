@@ -1,11 +1,10 @@
 <?php
 declare( strict_types=1 );
 
-namespace WPMedia\MCP\OAuth\Tests\Unit\Auth;
+namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\Rewrite;
 
-use Brain\Monkey\Functions;
 use WPMedia\MCP\OAuth\Auth\Rewrite;
-use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
+use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\Rewrite::register_oauth_rewrite_rules
@@ -13,6 +12,18 @@ use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
  * @covers \WPMedia\MCP\OAuth\Auth\Rewrite::register_oauth_rewrite_rules
  */
 class RegisterOauthRewriteRulesTest extends TestCase {
+
+	/**
+	 * Clears the rewrite rules registered by previous tests.
+	 *
+	 * @return void
+	 */
+	public function set_up() {
+		parent::set_up();
+
+		global $wp_rewrite;
+		$wp_rewrite->extra_rules_top = [];
+	}
 
 	/**
 	 * Registers a rewrite rule for each of the five OAuth endpoints.
@@ -23,12 +34,15 @@ class RegisterOauthRewriteRulesTest extends TestCase {
 	 * @param array<string, mixed> $expected Expected outcome.
 	 */
 	public function testShouldRegisterRewriteRuleForEachEndpoint( array $config, array $expected ): void {
-		foreach ( $expected['rules'] as $rule ) {
-			Functions\expect( 'add_rewrite_rule' )
-				->once()
-				->with( $rule['pattern'], $rule['query'], 'top' );
-		}
+		global $wp_rewrite;
 
 		( new Rewrite() )->register_oauth_rewrite_rules();
+
+		foreach ( $expected['rules'] as $rule ) {
+			$this->assertSame(
+				$rule['query'],
+				$wp_rewrite->extra_rules_top[ $rule['pattern'] ] ?? null
+			);
+		}
 	}
 }

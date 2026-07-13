@@ -1,7 +1,7 @@
 <?php
 declare( strict_types=1 );
 
-namespace WPMedia\MCP\OAuth\Tests\Integration\Auth;
+namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\Rewrite;
 
 use WPMedia\MCP\OAuth\Auth\Rewrite;
 use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
