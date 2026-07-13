@@ -154,6 +154,23 @@ return [
 			'creates_auth_code' => false,
 		],
 	],
+	'testShouldRedirectWithAccessDeniedWhenActionIsMissing' => [
+		'config'   => [
+			'method'         => 'POST',
+			'logged_in'      => true,
+			'state'          => 'missing-action-state',
+			'nonce'          => 'valid',
+			'seed_transient' => true,
+			'action'         => null,
+		],
+		'expected' => [
+			'outcome'           => 'redirect',
+			'response_code'     => null,
+			'redirect_error'    => 'access_denied',
+			'consumes_state'    => true,
+			'creates_auth_code' => false,
+		],
+	],
 	'testShouldIssueAuthCodeAndRedirectWhenActionIsAllow' => [
 		'config'   => [
 			'method'         => 'POST',

@@ -142,6 +142,8 @@ class HandleRequestTest extends TestCase {
 			return;
 		}
 
+		$this->assertIsArray( $state_data, 'A redirect outcome requires seed_transient => true in the fixture.' );
+
 		$query = $this->assertRedirectsTo( $state_data['redirect_uri'], new ConsentEndpoint() );
 
 		$this->assertSame( $config['state'], $query['state'] );
