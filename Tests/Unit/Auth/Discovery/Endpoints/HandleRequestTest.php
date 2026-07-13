@@ -1,7 +1,7 @@
 <?php
 declare( strict_types=1 );
 
-namespace WPMedia\MCP\OAuth\Tests\Unit\Auth\Discovery;
+namespace WPMedia\MCP\OAuth\Tests\Unit\Auth\Discovery\Endpoints;
 
 use Brain\Monkey\Functions;
 use Mockery;
