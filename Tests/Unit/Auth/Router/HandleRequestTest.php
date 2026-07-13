@@ -32,8 +32,6 @@ class HandleRequestTest extends TestCase {
 	 * @param array<string, mixed> $expected Expected outcome.
 	 */
 	public function testShouldDispatchRequestAccordingToContext( array $config, array $expected ): void {
-		$this->stubEscapeFunctions();
-
 		Functions\expect( 'get_query_var' )
 			->once()
 			->with( Rewrite::OAUTH_QUERY_VAR, '' )
@@ -54,6 +52,7 @@ class HandleRequestTest extends TestCase {
 			Functions\expect( 'status_header' )->once()->with( 404 );
 		} elseif ( $expected['unknown'] ) {
 			Functions\expect( 'status_header' )->once()->with( 404 );
+			Functions\when( 'esc_html__' )->returnArg();
 			Functions\expect( 'wp_die' )->once()->andThrow( new Exception( 'wp_die called' ) );
 
 			$this->expectException( Exception::class );
