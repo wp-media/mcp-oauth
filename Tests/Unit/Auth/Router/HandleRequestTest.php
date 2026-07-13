@@ -1,7 +1,7 @@
 <?php
 declare( strict_types=1 );
 
-namespace WPMedia\MCP\OAuth\Tests\Unit\Auth;
+namespace WPMedia\MCP\OAuth\Tests\Unit\Auth\Router;
 
 use Brain\Monkey\Functions;
 use Exception;

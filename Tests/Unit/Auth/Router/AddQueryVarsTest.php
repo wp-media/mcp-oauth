@@ -1,7 +1,7 @@
 <?php
 declare( strict_types=1 );
 
-namespace WPMedia\MCP\OAuth\Tests\Unit\Auth;
+namespace WPMedia\MCP\OAuth\Tests\Unit\Auth\Router;
 
 use Mockery;
 use WPMedia\MCP\OAuth\Auth\AuthorizeCallback;
@@ -15,36 +15,37 @@ use WPMedia\MCP\OAuth\Context;
 use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
 
 /**
- * Tests for WPMedia\MCP\OAuth\Auth\Router::purge_refresh_jti_meta
+ * Tests for WPMedia\MCP\OAuth\Auth\Router::add_query_vars
  *
- * @covers \WPMedia\MCP\OAuth\Auth\Router::purge_refresh_jti_meta
+ * @covers \WPMedia\MCP\OAuth\Auth\Router::add_query_vars
  */
-class PurgeRefreshJtiMetaTest extends TestCase {
+class AddQueryVarsTest extends TestCase {
 
 	/**
-	 * Delegates to TokenEndpoint::purge_refresh_jti_meta() with cast arguments.
+	 * Delegates to Rewrite::add_oauth_query_vars() and returns its result.
 	 *
 	 * @dataProvider configTestData
 	 *
 	 * @param array<string, mixed> $config   Test configuration.
 	 * @param array<string, mixed> $expected Expected outcome.
 	 */
-	public function testShouldDelegateToTokenEndpointWithCastArguments( array $config, array $expected ): void {
-		$token_endpoint = Mockery::mock( TokenEndpoint::class );
-		$token_endpoint->shouldReceive( 'purge_refresh_jti_meta' )
+	public function testShouldDelegateToRewrite( array $config, array $expected ): void {
+		$rewrite = Mockery::mock( Rewrite::class );
+		$rewrite->shouldReceive( 'add_oauth_query_vars' )
 			->once()
-			->with( $expected['user_id'], $expected['item'] );
+			->with( $config['vars'] )
+			->andReturn( $expected['vars'] );
 
 		$router = new Router(
-			Mockery::mock( Rewrite::class ),
+			$rewrite,
 			Mockery::mock( AuthorizeEndpoint::class ),
 			Mockery::mock( AuthorizeCallback::class ),
-			$token_endpoint,
+			Mockery::mock( TokenEndpoint::class ),
 			Mockery::mock( ConsentEndpoint::class ),
 			Mockery::mock( RevokeEndpoint::class ),
 			Mockery::mock( Context::class )
 		);
 
-		$router->purge_refresh_jti_meta( $config['user_id'], $config['item'] );
+		$this->assertSame( $expected['vars'], $router->add_query_vars( $config['vars'] ) );
 	}
 }
