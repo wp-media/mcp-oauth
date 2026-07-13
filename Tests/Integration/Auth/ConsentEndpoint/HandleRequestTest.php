@@ -1,7 +1,7 @@
 <?php
 declare( strict_types=1 );
 
-namespace WPMedia\MCP\OAuth\Tests\Integration\Auth;
+namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\ConsentEndpoint;
 
 use RuntimeException;
 use WPDieException;
