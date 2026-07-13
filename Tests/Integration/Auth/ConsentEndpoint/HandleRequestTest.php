@@ -91,148 +91,83 @@ class HandleRequestTest extends TestCase {
 	}
 
 	/**
-	 * Rejects any request that isn't a POST with a 405.
+	 * Handles a consent request according to the given configuration.
 	 *
 	 * @dataProvider configTestData
 	 *
 	 * @param array<string, mixed> $config   Test configuration.
 	 * @param array<string, mixed> $expected Expected outcome.
 	 */
-	public function testShouldDieWithMethodNotAllowedForNonPostRequests( array $config, array $expected ): void {
+	public function testShouldHandleRequestAccordingToConfig( array $config, array $expected ): void {
 		if ( null === $config['method'] ) {
 			unset( $_SERVER['REQUEST_METHOD'] );
 		} else {
 			$_SERVER['REQUEST_METHOD'] = $config['method'];
 		}
 
-		$this->assertDiesWithResponseCode( $expected['response'], new ConsentEndpoint() );
-	}
+		$user_id = null;
+		if ( $config['logged_in'] ) {
+			$user_id = $this->logInNewUser();
+		} else {
+			wp_set_current_user( 0 );
+		}
 
-	/**
-	 * Rejects a POST from a logged-out visitor with a 401.
-	 *
-	 * @return void
-	 */
-	public function testShouldDieWhenUserIsNotLoggedIn(): void {
-		$_SERVER['REQUEST_METHOD'] = 'POST';
-		wp_set_current_user( 0 );
+		if ( null === $config['state'] ) {
+			unset( $_POST['state'] );
+		} else {
+			$_POST['state'] = $config['state'];
+		}
 
-		$this->assertDiesWithResponseCode( 401, new ConsentEndpoint() );
-	}
+		if ( 'valid' === $config['nonce'] ) {
+			$this->useValidNonce( (string) $config['state'] );
+		} elseif ( 'invalid' === $config['nonce'] ) {
+			$_POST['mcp_consent_nonce']    = 'not-a-valid-nonce';
+			$_REQUEST['mcp_consent_nonce'] = 'not-a-valid-nonce';
+		}
 
-	/**
-	 * Rejects a logged-in POST that is missing the state parameter with a 400.
-	 *
-	 * @return void
-	 */
-	public function testShouldDieWhenStateParamIsMissing(): void {
-		$_SERVER['REQUEST_METHOD'] = 'POST';
-		$this->logInNewUser();
+		$state_data = null;
+		if ( $config['seed_transient'] ) {
+			$state_data = $this->seedStateTransient( (string) $config['state'] );
+		}
 
-		unset( $_POST['state'] );
+		if ( null === $config['action'] ) {
+			unset( $_POST['mcp_action'] );
+		} else {
+			$_POST['mcp_action'] = $config['action'];
+		}
 
-		$this->assertDiesWithResponseCode( 400, new ConsentEndpoint() );
-	}
+		if ( 'die' === $expected['outcome'] ) {
+			$this->assertDiesWithResponseCode( $expected['response_code'], new ConsentEndpoint() );
 
-	/**
-	 * Dies when check_admin_referer() rejects a missing/invalid nonce, before
-	 * the state transient is ever consumed.
-	 *
-	 * @return void
-	 */
-	public function testShouldDieWhenNonceIsInvalid(): void {
-		$_SERVER['REQUEST_METHOD'] = 'POST';
-		$this->logInNewUser();
-
-		$state          = 'nonce-failure-state';
-		$_POST['state'] = $state;
-		// Deliberately no (or an invalid) mcp_consent_nonce value.
-		$_POST['mcp_consent_nonce']    = 'not-a-valid-nonce';
-		$_REQUEST['mcp_consent_nonce'] = 'not-a-valid-nonce';
-
-		$this->expectException( WPDieException::class );
-
-		( new ConsentEndpoint() )->handle_request();
-	}
-
-	/**
-	 * Dies with a 400 when the state transient is absent/expired, even with a
-	 * valid nonce.
-	 *
-	 * @return void
-	 */
-	public function testShouldDieWhenStateTransientIsMissing(): void {
-		$_SERVER['REQUEST_METHOD'] = 'POST';
-		$this->logInNewUser();
-
-		$state          = 'expired-state';
-		$_POST['state'] = $state;
-		$this->useValidNonce( $state );
-
-		// No transient seeded for this state.
-		$this->assertDiesWithResponseCode( 400, new ConsentEndpoint() );
-	}
-
-	/**
-	 * Denying access redirects to the client's redirect_uri with
-	 * error=access_denied, consumes the state transient, and never mints an
-	 * auth code.
-	 *
-	 * @return void
-	 */
-	public function testShouldRedirectWithAccessDeniedWhenActionIsNotAllow(): void {
-		$_SERVER['REQUEST_METHOD'] = 'POST';
-		$this->logInNewUser();
-
-		$state          = 'deny-state';
-		$_POST['state'] = $state;
-		$this->useValidNonce( $state );
-		$state_data = $this->seedStateTransient( $state );
-
-		$_POST['mcp_action'] = 'deny';
+			return;
+		}
 
 		$query = $this->assertRedirectsTo( $state_data['redirect_uri'], new ConsentEndpoint() );
 
-		$this->assertSame( 'access_denied', $query['error'] );
-		$this->assertSame( $state, $query['state'] );
+		$this->assertSame( $config['state'], $query['state'] );
 
-		$this->assertFalse( get_transient( 'mcp_oauth_state_' . $state ), 'State transient should be consumed.' );
-		$this->assertSame( [], $this->getAuthCodeTransientNames(), 'No auth code transient should have been created.' );
-	}
+		if ( null !== $expected['redirect_error'] ) {
+			$this->assertSame( $expected['redirect_error'], $query['error'] );
+		} else {
+			$this->assertArrayHasKey( 'code', $query );
+			$this->assertNotSame( '', $query['code'] );
+		}
 
-	/**
-	 * Allowing access mints a single-use auth code transient carrying the
-	 * user/client/PKCE details, consumes the state transient, and redirects to
-	 * the client's redirect_uri with the code.
-	 *
-	 * @return void
-	 */
-	public function testShouldIssueAuthCodeAndRedirectWhenActionIsAllow(): void {
-		$_SERVER['REQUEST_METHOD'] = 'POST';
-		$user_id                   = $this->logInNewUser();
+		if ( $expected['consumes_state'] ) {
+			$this->assertFalse( get_transient( 'mcp_oauth_state_' . $config['state'] ), 'State transient should be consumed.' );
+		}
 
-		$state          = 'allow-state';
-		$_POST['state'] = $state;
-		$this->useValidNonce( $state );
-		$state_data = $this->seedStateTransient( $state );
+		if ( $expected['creates_auth_code'] ) {
+			$code_data = get_transient( 'mcp_oauth_code_' . $query['code'] );
 
-		$_POST['mcp_action'] = 'allow';
-
-		$query = $this->assertRedirectsTo( $state_data['redirect_uri'], new ConsentEndpoint() );
-
-		$this->assertSame( $state, $query['state'] );
-		$this->assertArrayHasKey( 'code', $query );
-		$this->assertNotSame( '', $query['code'] );
-
-		$code_data = get_transient( 'mcp_oauth_code_' . $query['code'] );
-
-		$this->assertIsArray( $code_data );
-		$this->assertSame( $user_id, $code_data['user_id'] );
-		$this->assertSame( $state_data['client_id'], $code_data['client_id'] );
-		$this->assertSame( $state_data['redirect_uri'], $code_data['redirect_uri'] );
-		$this->assertSame( $state_data['code_challenge'], $code_data['code_challenge'] );
-
-		$this->assertFalse( get_transient( 'mcp_oauth_state_' . $state ), 'State transient should be consumed.' );
+			$this->assertIsArray( $code_data );
+			$this->assertSame( $user_id, $code_data['user_id'] );
+			$this->assertSame( $state_data['client_id'], $code_data['client_id'] );
+			$this->assertSame( $state_data['redirect_uri'], $code_data['redirect_uri'] );
+			$this->assertSame( $state_data['code_challenge'], $code_data['code_challenge'] );
+		} else {
+			$this->assertSame( [], $this->getAuthCodeTransientNames(), 'No auth code transient should have been created.' );
+		}
 	}
 
 	/**
