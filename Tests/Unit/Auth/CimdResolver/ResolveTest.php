@@ -1,7 +1,7 @@
 <?php
 declare( strict_types=1 );
 
-namespace WPMedia\MCP\OAuth\Tests\Unit\Auth;
+namespace WPMedia\MCP\OAuth\Tests\Unit\Auth\CimdResolver;
 
 use Brain\Monkey\Functions;
 use Mockery;
@@ -17,23 +17,6 @@ use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
 class ResolveTest extends TestCase {
 
 	/**
-	 * Sets up the WP constants read by CimdResolver::parse_ttl().
-	 *
-	 * @return void
-	 */
-	protected function set_up(): void {
-		parent::set_up();
-
-		if ( ! defined( 'HOUR_IN_SECONDS' ) ) {
-			define( 'HOUR_IN_SECONDS', 3600 ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- WP core constant, not a plugin-defined global.
-		}
-
-		if ( ! defined( 'DAY_IN_SECONDS' ) ) {
-			define( 'DAY_IN_SECONDS', 86400 ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- WP core constant, not a plugin-defined global.
-		}
-	}
-
-	/**
 	 * Resolves a client_id URL into a normalised client record according to config.
 	 *
 	 * @dataProvider configTestData
@@ -42,10 +25,10 @@ class ResolveTest extends TestCase {
 	 * @param array<string, mixed> $expected Expected outcome.
 	 */
 	public function testShouldResolveClientAccordingToConfig( array $config, array $expected ): void {
+		$this->stubEscapeFunctions();
+
 		Functions\when( 'wp_parse_url' )->alias( 'parse_url' );
 		Functions\when( 'sanitize_text_field' )->returnArg();
-		Functions\when( 'esc_url_raw' )->alias( 'strval' );
-		Functions\when( 'wp_json_encode' )->justReturn( '{}' );
 		Functions\when( 'is_wp_error' )->justReturn( $config['is_wp_error'] ?? false );
 		Functions\when( 'wp_remote_retrieve_response_code' )->justReturn( $config['status'] ?? 200 );
 		Functions\when( 'wp_remote_retrieve_body' )->justReturn( $config['body'] ?? '' );
