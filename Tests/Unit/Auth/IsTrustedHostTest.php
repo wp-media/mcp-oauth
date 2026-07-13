@@ -23,10 +23,10 @@ class IsTrustedHostTest extends TestCase {
 	 * @param array<string, mixed> $expected Expected outcome.
 	 */
 	public function testShouldDetermineWhetherHostIsTrusted( array $config, array $expected ): void {
-		// wpm_apply_filters_typed() is loaded via composer's "files" autoload before
-		// Patchwork boots, so it cannot be redefined directly; mock the underlying
-		// apply_filters() call it wraps instead, so its real (pass-through) logic runs.
-		Functions\when( 'apply_filters' )->returnArg( 2 );
+		// get_trusted_publishers() runs the built-in allowlist through the
+		// `wpmedia_mcp_oauth_trusted_publishers` filter. Brain\Monkey returns an
+		// applied filter's value unchanged by default, so the built-in Claude entry
+		// is evaluated as-is — no filter stubbing needed for these scenarios.
 		Functions\when( 'wp_parse_url' )->alias( 'parse_url' );
 
 		$verifier = new ClaudeClientVerifier();
