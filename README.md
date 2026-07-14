@@ -79,6 +79,20 @@ are re-flushed on the next request.
   needed, the shared `mcp-adapter` abilities) with `wordpress/mcp-adapter`.
 - **`Context`** — the single `is_enabled()` gate consulted everywhere.
 
+## Logging
+
+MCP structured logging lives in `McpLogger` (`inc/Logging/`), the single
+choke-point for all `[MCP]` log lines. All log output — including
+security/audit lines such as refresh-token-reuse detection — is gated on
+**both** `WP_DEBUG` and `WP_DEBUG_LOG` being enabled, matching WordPress
+core's own behaviour of only redirecting `error_log()` output to
+`wp-content/debug.log` when `WP_DEBUG` is true.
+
+> **Operational note:** because audit logging shares this same gate,
+> operators who need audit-trail visibility in production must enable
+> **both** constants (not just `WP_DEBUG_LOG`). Understand that doing so
+> also enables verbose WP debug logging generally.
+
 ## Testing
 
 ```bash

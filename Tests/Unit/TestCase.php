@@ -6,6 +6,15 @@ namespace WPMedia\MCP\OAuth\Tests\Unit;
 use ReflectionObject;
 use WPMedia\PHPUnit\Unit\TestCase as BaseTestCase;
 
+/**
+ * Shared base class for unit tests.
+ *
+ * When a test needs to exercise code paths gated by `define()`-once
+ * constants (e.g. WP_DEBUG, WP_DEBUG_LOG), see
+ * `Tests/Unit/Logging/McpLogger/LogTest.php` for the reference pattern:
+ * `@runInSeparateProcess` + `@preserveGlobalState disabled` per data set,
+ * so a constant defined by one row never leaks into another.
+ */
 abstract class TestCase extends BaseTestCase {
 	/**
 	 * Configuration for the test data.

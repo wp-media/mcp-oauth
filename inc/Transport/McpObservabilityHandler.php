@@ -13,7 +13,7 @@ namespace WPMedia\MCP\OAuth\Transport;
 
 use WP\MCP\Infrastructure\Observability\Contracts\McpObservabilityHandlerInterface;
 use WP\MCP\Infrastructure\Observability\McpObservabilityHelperTrait;
-use WPMedia\MCP\OAuth\Auth\McpLogger;
+use WPMedia\MCP\OAuth\Logging\McpLogger;
 
 /**
  * Observability handler that writes MCP events to the MCP OAuth log.
@@ -25,8 +25,8 @@ class McpObservabilityHandler implements McpObservabilityHandlerInterface {
 	 * Record an MCP event, optionally with timing data.
 	 *
 	 * Events are written via McpLogger under the 'OBSERVABILITY' scope.
-	 * Debug-only logging is used for high-frequency request events to avoid
-	 * polluting production logs; all error/failure events are always logged.
+	 * All events, including error/failure events, are only written when
+	 * both WP_DEBUG_LOG and WP_DEBUG are enabled.
 	 *
 	 * @param string     $event       Event name (e.g. 'mcp.request', 'mcp.component.registration').
 	 * @param array      $tags        Key-value context tags (status, method, tool_name, etc.).
@@ -41,10 +41,6 @@ class McpObservabilityHandler implements McpObservabilityHandlerInterface {
 			$merged_tags['duration_ms'] = round( $duration_ms, 2 );
 		}
 
-		// Log failures unconditionally; debug-only for successful/routine events.
-		$is_error   = isset( $merged_tags['status'] ) && 'error' === $merged_tags['status'];
-		$debug_only = ! $is_error;
-
-		McpLogger::log( 'OBSERVABILITY', $formatted_event, $merged_tags, $debug_only );
+		McpLogger::log( 'OBSERVABILITY', $formatted_event, $merged_tags );
 	}
 }

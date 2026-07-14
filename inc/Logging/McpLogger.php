@@ -16,7 +16,7 @@
 
 declare(strict_types=1);
 
-namespace WPMedia\MCP\OAuth\Auth;
+namespace WPMedia\MCP\OAuth\Logging;
 
 /**
  * McpLogger.
@@ -26,21 +26,17 @@ class McpLogger {
 	/**
 	 * Write a structured [MCP] log entry.
 	 *
-	 * Pass $debug_only = true for verbose happy-path traces (e.g. per-request
-	 * header dumps, per-ability registration details) that are useful when
-	 * diagnosing issues but too noisy for production.  Security events and
-	 * failure paths should always use $debug_only = false (the default).
+	 * The entire logger is gated on WP_DEBUG_LOG AND WP_DEBUG both being true
+	 * (see is_debug_enabled()): when either is not truthy, nothing is written
+	 * at all.
 	 *
-	 * Debug-only entries fire when WP_DEBUG is true.
-	 *
-	 * @param string               $scope      Short uppercase scope tag, e.g. 'TOKEN', 'VALIDATOR'.
-	 * @param string               $message    Human-readable description.
-	 * @param array<string, mixed> $context    Key-value pairs serialised as JSON.
-	 * @param bool                 $debug_only When true, only log if WP_DEBUG is enabled.
+	 * @param string               $scope   Short uppercase scope tag, e.g. 'TOKEN', 'VALIDATOR'.
+	 * @param string               $message Human-readable description.
+	 * @param array<string, mixed> $context Key-value pairs serialised as JSON.
 	 * @return void
 	 */
-	public static function log( string $scope, string $message, array $context = [], bool $debug_only = false ): void {
-		if ( $debug_only && ! self::is_debug_enabled() ) {
+	public static function log( string $scope, string $message, array $context = [] ): void {
+		if ( ! self::is_debug_enabled() ) {
 			return;
 		}
 
@@ -56,12 +52,17 @@ class McpLogger {
 	/**
 	 * Whether MCP debug logging is enabled.
 	 *
-	 * True when WP_DEBUG is true.
+	 * True when WP_DEBUG_LOG is truthy (bool true, or a string custom log file
+	 * path per WP 5.1+) AND WP_DEBUG is also true. WordPress core only
+	 * redirects PHP's error_log() output to wp-content/debug.log when
+	 * WP_DEBUG is true, regardless of WP_DEBUG_LOG; requiring both here avoids
+	 * a configuration where this gate passes but the output doesn't land
+	 * where an operator would expect it (wp-content/debug.log).
 	 *
 	 * @return bool
 	 */
 	private static function is_debug_enabled(): bool {
-		return defined( 'WP_DEBUG' ) && WP_DEBUG;
+		return defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG;
 	}
 
 	/**

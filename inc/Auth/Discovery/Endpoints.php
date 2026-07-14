@@ -15,8 +15,8 @@ declare(strict_types=1);
 namespace WPMedia\MCP\OAuth\Auth\Discovery;
 
 use WPMedia\MCP\OAuth\Auth\Http404Trait;
-use WPMedia\MCP\OAuth\Auth\McpLogger;
 use WPMedia\MCP\OAuth\Context;
+use WPMedia\MCP\OAuth\Logging\McpLogger;
 
 class Endpoints {
 
