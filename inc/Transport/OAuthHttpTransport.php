@@ -103,8 +103,7 @@ class OAuthHttpTransport implements McpRestTransportInterface {
 			[
 				'user_id' => $user_or_error->ID,
 				'method'  => $request->get_method(),
-			],
-			true
+			]
 		);
 
 		$context = new HttpRequestContext( $request );
@@ -134,8 +133,7 @@ class OAuthHttpTransport implements McpRestTransportInterface {
 				'route'   => $route,
 				'headers' => McpLogger::safe_request_headers(),
 				'body'    => McpLogger::safe_request_body(),
-			],
-			true
+			]
 		);
 
 		if ( empty( $authorization ) || 0 !== strpos( $authorization, 'Bearer ' ) ) {

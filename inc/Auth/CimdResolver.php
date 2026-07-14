@@ -203,8 +203,7 @@ class CimdResolver {
 				[
 					'client_id'    => $url,
 					'content_type' => $content_type,
-				],
-				true
+				]
 			);
 		}
 

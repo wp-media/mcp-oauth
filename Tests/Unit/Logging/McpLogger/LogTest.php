@@ -15,7 +15,7 @@ class LogTest extends TestCase {
 
 	/**
 	 * Writes (or skips) a log entry according to the WP_DEBUG_LOG/WP_DEBUG
-	 * constants and the (now vestigial) $debug_only flag.
+	 * constants — both must be truthy for the entry to be written.
 	 *
 	 * WP_DEBUG_LOG/WP_DEBUG are define()d constants that, once set, cannot be
 	 * redefined or undefined for the rest of the PHP process. @runInSeparateProcess
@@ -52,7 +52,7 @@ class LogTest extends TestCase {
 		ini_set( 'error_log', $log_file ); // phpcs:ignore WordPress.PHP.IniSet.Risky -- test-only, redirects error_log() to a scratch file within an isolated process; never runs in production.
 
 		try {
-			McpLogger::log( 'TEST', 'test message', [], $config['debug_only'] );
+			McpLogger::log( 'TEST', 'test message', [] );
 
 			$written = file_exists( $log_file ) ? trim( (string) file_get_contents( $log_file ) ) : ''; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reading a local scratch file, not a remote URL.
 

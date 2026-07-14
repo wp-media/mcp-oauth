@@ -1,72 +1,85 @@
 <?php
 
 return [
-	'testShouldWriteWhenWpDebugLogTrueAndDebugOnlyFalse' => [
+	'testShouldWriteWhenWpDebugLogTrueAndWpDebugTrue'      => [
 		'config'   => [
 			'define_wp_debug_log' => true,
 			'wp_debug_log_value'  => true,
-			'debug_only'          => false,
+			'define_wp_debug'     => true,
+			'wp_debug_value'      => true,
 		],
 		'expected' => [
 			'error_log_called' => true,
 		],
 	],
-	'testShouldWriteWhenWpDebugLogTrueAndDebugOnlyTrue'  => [
+	'testShouldNotWriteWhenWpDebugLogTrueAndWpDebugFalse'  => [
 		'config'   => [
 			'define_wp_debug_log' => true,
 			'wp_debug_log_value'  => true,
-			'debug_only'          => true,
+			'define_wp_debug'     => true,
+			'wp_debug_value'      => false,
 		],
 		'expected' => [
-			'error_log_called' => true,
+			'error_log_called' => false,
 		],
 	],
-	'testShouldNotWriteWhenWpDebugLogFalseAndDebugOnlyFalse' => [
+	'testShouldNotWriteWhenWpDebugLogFalseAndWpDebugTrue'  => [
 		'config'   => [
 			'define_wp_debug_log' => true,
 			'wp_debug_log_value'  => false,
-			'debug_only'          => false,
+			'define_wp_debug'     => true,
+			'wp_debug_value'      => true,
 		],
 		'expected' => [
 			'error_log_called' => false,
 		],
 	],
-	'testShouldNotWriteWhenWpDebugLogFalseAndDebugOnlyTrue' => [
+	'testShouldNotWriteWhenWpDebugLogFalseAndWpDebugFalse' => [
 		'config'   => [
 			'define_wp_debug_log' => true,
 			'wp_debug_log_value'  => false,
-			'debug_only'          => true,
+			'define_wp_debug'     => true,
+			'wp_debug_value'      => false,
 		],
 		'expected' => [
 			'error_log_called' => false,
 		],
 	],
-	'testShouldNotWriteWhenNeitherConstantDefined'       => [
-		'config'   => [
-			'debug_only' => false,
-		],
+	'testShouldNotWriteWhenNeitherConstantDefined'         => [
+		'config'   => [],
 		'expected' => [
 			'error_log_called' => false,
 		],
 	],
-	'testShouldNotWriteWhenOnlyWpDebugTrue'              => [
+	'testShouldNotWriteWhenOnlyWpDebugTrue'                => [
 		'config'   => [
 			'define_wp_debug' => true,
 			'wp_debug_value'  => true,
-			'debug_only'      => false,
 		],
 		'expected' => [
 			'error_log_called' => false,
 		],
 	],
-	'testShouldWriteWhenWpDebugLogIsFilePathString'      => [
+	'testShouldWriteWhenWpDebugLogIsFilePathStringAndWpDebugTrue' => [
 		'config'   => [
 			'define_wp_debug_log' => true,
 			'wp_debug_log_value'  => '/tmp/mcp-oauth-debug.log',
-			'debug_only'          => false,
+			'define_wp_debug'     => true,
+			'wp_debug_value'      => true,
 		],
 		'expected' => [
 			'error_log_called' => true,
+		],
+	],
+	'testShouldNotWriteWhenWpDebugLogIsFilePathStringAndWpDebugFalse' => [
+		'config'   => [
+			'define_wp_debug_log' => true,
+			'wp_debug_log_value'  => '/tmp/mcp-oauth-debug.log',
+			'define_wp_debug'     => true,
+			'wp_debug_value'      => false,
+		],
+		'expected' => [
+			'error_log_called' => false,
 		],
 	],
 ];

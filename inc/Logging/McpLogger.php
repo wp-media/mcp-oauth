@@ -26,29 +26,20 @@ class McpLogger {
 	/**
 	 * Write a structured [MCP] log entry.
 	 *
-	 * The entire logger is gated on WP_DEBUG_LOG (see is_debug_enabled()): when
-	 * it is not truthy, nothing is written at all, regardless of $debug_only.
+	 * The entire logger is gated on WP_DEBUG_LOG AND WP_DEBUG both being true
+	 * (see is_debug_enabled()): when either is not truthy, nothing is written
+	 * at all.
 	 *
-	 * @param string               $scope      Short uppercase scope tag, e.g. 'TOKEN', 'VALIDATOR'.
-	 * @param string               $message    Human-readable description.
-	 * @param array<string, mixed> $context    Key-value pairs serialised as JSON.
-	 * @param bool                 $debug_only Retained for call-site compatibility; currently a no-op
-	 *                                         (see inline comment below). Historically distinguished
-	 *                                         verbose happy-path traces from security/failure events
-	 *                                         that were meant to log unconditionally, but issue #17
-	 *                                         requires ALL logging to be gated on WP_DEBUG_LOG.
+	 * @param string               $scope   Short uppercase scope tag, e.g. 'TOKEN', 'VALIDATOR'.
+	 * @param string               $message Human-readable description.
+	 * @param array<string, mixed> $context Key-value pairs serialised as JSON.
 	 * @return void
 	 */
-	public static function log( string $scope, string $message, array $context = [], bool $debug_only = false ): void { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- $debug_only is intentionally vestigial, see the docblock and inline comment below.
+	public static function log( string $scope, string $message, array $context = [] ): void {
 		if ( ! self::is_debug_enabled() ) {
 			return;
 		}
 
-		// $debug_only is intentionally not consulted here: both branches now behave
-		// identically once the outer WP_DEBUG_LOG gate above has passed. It is kept
-		// in the signature so no call site needs to change, and in case a second
-		// verbosity tier is reintroduced later. Flagged per AGENTS.md convention —
-		// this is surprising/confusing without this note.
 		$line = sprintf(
 			'[MCP][%s] %s %s',
 			strtoupper( $scope ),
@@ -62,13 +53,16 @@ class McpLogger {
 	 * Whether MCP debug logging is enabled.
 	 *
 	 * True when WP_DEBUG_LOG is truthy (bool true, or a string custom log file
-	 * path per WP 5.1+). Per WordPress convention, WP_DEBUG_LOG — not WP_DEBUG —
-	 * is what controls whether debug messages are written to a log file.
+	 * path per WP 5.1+) AND WP_DEBUG is also true. WordPress core only
+	 * redirects PHP's error_log() output to wp-content/debug.log when
+	 * WP_DEBUG is true, regardless of WP_DEBUG_LOG; requiring both here avoids
+	 * a configuration where this gate passes but the output doesn't land
+	 * where an operator would expect it (wp-content/debug.log).
 	 *
 	 * @return bool
 	 */
 	private static function is_debug_enabled(): bool {
-		return defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG;
+		return defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG;
 	}
 
 	/**
