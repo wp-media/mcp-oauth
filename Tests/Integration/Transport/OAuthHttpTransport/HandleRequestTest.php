@@ -30,6 +30,14 @@ use WPMedia\MCP\OAuth\Transport\OAuthHttpTransport;
 class HandleRequestTest extends TestCase {
 
 	/**
+	 * User ID created by build_authorization() for the current scenario, or
+	 * null when the scenario doesn't create one.
+	 *
+	 * @var int|null
+	 */
+	private $created_user_id;
+
+	/**
 	 * Builds a transport backed by a mocked transport context.
 	 *
 	 * @param McpServer|null $server Optional server mock to expose on the context.
@@ -102,176 +110,109 @@ class HandleRequestTest extends TestCase {
 	}
 
 	/**
-	 * Creates a user with a real Application Password; returns [ user_id, uuid ].
+	 * Builds the Authorization header for a scenario, optionally creating a
+	 * real user (and Application Password) whose identifiers get folded into
+	 * the minted token's claims. The created user ID is stashed on
+	 * $this->created_user_id so the caller can assert against it afterwards.
 	 *
-	 * @return array{0: int, 1: string}
+	 * @param array<string, mixed> $config Scenario configuration.
+	 * @return string|null
 	 */
-	private function create_user_with_app_password(): array {
-		$user_id = self::factory()->user->create();
-		$created = \WP_Application_Passwords::create_new_application_password( $user_id, [ 'name' => 'mcp-test' ] );
+	private function build_authorization( array $config ): ?string {
+		$this->created_user_id = null;
 
-		return [ $user_id, (string) $created[1]['uuid'] ];
+		switch ( $config['header_type'] ) {
+			case 'missing':
+				return null;
+
+			case 'basic':
+				return $config['basic_value'] ?? 'Basic abc123';
+
+			case 'malformed_jwt':
+				return 'Bearer not-a-jwt';
+
+			case 'token':
+				$claims = $config['claims'] ?? [];
+
+				if ( $config['create_user'] ?? false ) {
+					$this->created_user_id = self::factory()->user->create();
+					$claims['sub']         = $this->created_user_id;
+
+					if ( $config['create_app_password'] ?? false ) {
+						$created               = \WP_Application_Passwords::create_new_application_password( $this->created_user_id, [ 'name' => 'mcp-test' ] );
+						$claims['app_pass_id'] = (string) $created[1]['uuid'];
+					}
+				}
+
+				return 'Bearer ' . $this->mint_token( $claims );
+		}
+
+		return null;
 	}
 
 	/**
-	 * Always authorises via check_permission() (auth is enforced in handle_request()).
+	 * Exercises every branch of check_permission(), register_routes(),
+	 * validate_bearer_token(), and handle_request()'s auth-failure path from a
+	 * single method, driven by the scenario data in the sibling fixture file.
 	 *
-	 * @return void
-	 */
-	public function testShouldAlwaysAllowPermission(): void {
-		// check_permission() unconditionally returns true (auth is enforced in
-		// handle_request()); the assertion documents that contract.
-		$this->assertTrue( $this->make_transport()->check_permission( $this->make_request() ) ); // @phpstan-ignore-line
-	}
-
-	/**
-	 * Registers the MCP OAuth REST route via register_routes().
+	 * @dataProvider configTestData
 	 *
-	 * @return void
+	 * @param array<string, mixed> $config   Test configuration.
+	 * @param array<string, mixed> $expected Expected outcome.
 	 */
-	public function testShouldRegisterRestRoute(): void {
-		$server = Mockery::mock( McpServer::class );
-		$server->shouldReceive( 'get_server_route_namespace' )->andReturn( 'mcp' );
-		$server->shouldReceive( 'get_server_route' )->andReturn( 'mcp-oauth-server' );
+	public function testHandleRequest( array $config, array $expected ): void {
+		switch ( $expected['type'] ) {
+			case 'permission':
+				$this->assertTrue( $this->make_transport()->check_permission( $this->make_request() ) ); // @phpstan-ignore-line
 
-		$transport = $this->make_transport( $server );
+				return;
 
-		// Ensure the REST server has bootstrapped (fires rest_api_init) so that
-		// registering a route directly is not flagged as "called too early".
-		$rest_server = rest_get_server();
-		$transport->register_routes();
+			case 'register_routes':
+				$server = Mockery::mock( McpServer::class );
+				$server->shouldReceive( 'get_server_route_namespace' )->andReturn( 'mcp' );
+				$server->shouldReceive( 'get_server_route' )->andReturn( 'mcp-oauth-server' );
 
-		$routes = $rest_server->get_routes();
-		$this->assertArrayHasKey( '/mcp/mcp-oauth-server', $routes );
-	}
+				$transport = $this->make_transport( $server );
 
-	/**
-	 * A request with no Authorization header is rejected as unauthorised.
-	 *
-	 * @return void
-	 */
-	public function testShouldRejectMissingBearerToken(): void {
-		$result = $this->validate( $this->make_transport(), $this->make_request() );
+				// Ensure the REST server has bootstrapped (fires rest_api_init) so
+				// that registering a route directly is not flagged as "called too early".
+				$rest_server = rest_get_server();
+				$transport->register_routes();
+
+				$this->assertArrayHasKey( '/mcp/mcp-oauth-server', $rest_server->get_routes() );
+
+				return;
+
+			case 'auth_failure_response':
+				// handle_request() logs via McpLogger; buffer it to keep the test non-risky.
+				ob_start();
+				$response = $this->make_transport()->handle_request( $this->make_request() );
+				ob_end_clean();
+
+				$this->assertSame( 401, $response->get_status() );
+
+				$headers = $response->get_headers();
+				$this->assertArrayHasKey( 'WWW-Authenticate', $headers );
+				$this->assertStringContainsString( 'Bearer', $headers['WWW-Authenticate'] );
+
+				return;
+		}
+
+		$authorization = $this->build_authorization( $config );
+		$result        = $this->validate( $this->make_transport(), $this->make_request( $authorization ) );
+
+		if ( 'authenticated' === $expected['type'] ) {
+			$this->assertInstanceOf( \WP_User::class, $result );
+			$this->assertSame( $this->created_user_id, $result->ID );
+			$this->assertSame( $this->created_user_id, get_current_user_id() );
+
+			return;
+		}
 
 		$this->assertInstanceOf( \WP_Error::class, $result );
-		$this->assertSame( 'mcp_unauthorized', $result->get_error_code() );
-	}
 
-	/**
-	 * A non-Bearer Authorization header is rejected.
-	 *
-	 * @return void
-	 */
-	public function testShouldRejectNonBearerAuthorization(): void {
-		$result = $this->validate( $this->make_transport(), $this->make_request( 'Basic abc123' ) );
-
-		$this->assertInstanceOf( \WP_Error::class, $result );
-	}
-
-	/**
-	 * A token that fails signature/format decoding is rejected as invalid_token.
-	 *
-	 * @return void
-	 */
-	public function testShouldRejectUndecodableToken(): void {
-		$result = $this->validate( $this->make_transport(), $this->make_request( 'Bearer not-a-jwt' ) );
-
-		$this->assertInstanceOf( \WP_Error::class, $result );
-	}
-
-	/**
-	 * A validly-signed token whose audience does not match is rejected.
-	 *
-	 * @return void
-	 */
-	public function testShouldRejectAudienceMismatch(): void {
-		$token  = $this->mint_token( [ 'aud' => 'https://evil.example/wrong' ] );
-		$result = $this->validate( $this->make_transport(), $this->make_request( 'Bearer ' . $token ) );
-
-		$this->assertInstanceOf( \WP_Error::class, $result );
-	}
-
-	/**
-	 * A validly-signed token whose issuer does not match is rejected.
-	 *
-	 * @return void
-	 */
-	public function testShouldRejectIssuerMismatch(): void {
-		$token  = $this->mint_token( [ 'iss' => 'https://evil.example' ] );
-		$result = $this->validate( $this->make_transport(), $this->make_request( 'Bearer ' . $token ) );
-
-		$this->assertInstanceOf( \WP_Error::class, $result );
-	}
-
-	/**
-	 * A token missing the sub/app_pass_id claims is rejected.
-	 *
-	 * @return void
-	 */
-	public function testShouldRejectMalformedClaims(): void {
-		$token  = $this->mint_token();
-		$result = $this->validate( $this->make_transport(), $this->make_request( 'Bearer ' . $token ) );
-
-		$this->assertInstanceOf( \WP_Error::class, $result );
-	}
-
-	/**
-	 * A token whose Application Password has been revoked/does not exist is rejected.
-	 *
-	 * @return void
-	 */
-	public function testShouldRejectRevokedApplicationPassword(): void {
-		$user_id = self::factory()->user->create();
-		$token   = $this->mint_token(
-			[
-				'sub'         => $user_id,
-				'app_pass_id' => 'non-existent-uuid',
-			]
-		);
-
-		$result = $this->validate( $this->make_transport(), $this->make_request( 'Bearer ' . $token ) );
-
-		$this->assertInstanceOf( \WP_Error::class, $result );
-	}
-
-	/**
-	 * A fully valid token authenticates the user and sets the current user.
-	 *
-	 * @return void
-	 */
-	public function testShouldAuthenticateValidToken(): void {
-		list( $user_id, $uuid ) = $this->create_user_with_app_password();
-
-		$token = $this->mint_token(
-			[
-				'sub'         => $user_id,
-				'app_pass_id' => $uuid,
-			]
-		);
-
-		$result = $this->validate( $this->make_transport(), $this->make_request( 'Bearer ' . $token ) );
-
-		$this->assertInstanceOf( \WP_User::class, $result );
-		$this->assertSame( $user_id, $result->ID );
-		$this->assertSame( $user_id, get_current_user_id() );
-	}
-
-	/**
-	 * Returns a 401 WP_REST_Response with a WWW-Authenticate challenge from
-	 * handle_request() when the bearer token is missing/invalid.
-	 *
-	 * @return void
-	 */
-	public function testShouldReturn401ResponseOnAuthFailure(): void {
-		// handle_request() logs via McpLogger; buffer it to keep the test non-risky.
-		ob_start();
-		$response = $this->make_transport()->handle_request( $this->make_request() );
-		ob_end_clean();
-
-		$this->assertSame( 401, $response->get_status() );
-
-		$headers = $response->get_headers();
-		$this->assertArrayHasKey( 'WWW-Authenticate', $headers );
-		$this->assertStringContainsString( 'Bearer', $headers['WWW-Authenticate'] );
+		if ( isset( $expected['error_code'] ) ) {
+			$this->assertSame( $expected['error_code'], $result->get_error_code() );
+		}
 	}
 }
