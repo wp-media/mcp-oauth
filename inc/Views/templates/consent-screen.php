@@ -2,10 +2,8 @@
 /**
  * Consent screen view template.
  *
- * Rendered by WPMedia\MCP\OAuth\Auth\AuthorizeCallback::output_consent_screen()
- * via WPMedia\MCP\OAuth\Views\Render::view(). Pure presentation: assumes
- * `$data` is fully populated and pre-validated by the caller. Must not be
- * `require`d/`include`d from anywhere else.
+ * Rendered by AuthorizeCallback::output_consent_screen() via Render::view().
+ * Pure presentation — assumes `$data` is fully populated and pre-validated.
  *
  * @var array<string, mixed> $data {
  *     @type string $state        OAuth state token.

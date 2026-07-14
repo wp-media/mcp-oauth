@@ -1,13 +1,7 @@
 <?php
 /**
- * Path-traversal negative fixture for Tests/Unit/Views/Render/ViewTest.php.
- *
- * Deliberately placed where `Tests/Fixtures/Views/Render/templates/../../secret.php`
- * would resolve to (two directories above the templates/ dir used by that
- * test's Render instance). If Render::view()'s basename() confinement were
- * ever removed, a `$view` of `'../../secret'` would resolve here instead of
- * throwing \RuntimeException; this file's content should never be observed
- * by that test.
+ * Path-traversal negative fixture. Sits where `../../secret` would resolve
+ * to from the templates/ dir; should never be rendered by the test.
  */
 
 declare(strict_types=1);

@@ -29,7 +29,7 @@ class AuthorizeCallback {
 	const CONSENT_TTL = 300;
 
 	/**
-	 * View renderer used to display the consent screen.
+	 * View renderer.
 	 *
 	 * @var Render
 	 */
@@ -114,9 +114,6 @@ class AuthorizeCallback {
 	/**
 	 * Assemble the consent-screen view model and render it.
 	 *
-	 * Split out of render_consent_screen() so it can be exercised directly
-	 * (without the terminal `exit`) by tests that assert real rendered content.
-	 *
 	 * @param string               $state  OAuth state token.
 	 * @param array<string, mixed> $client Resolved CIMD client record.
 	 * @return void
@@ -124,12 +121,8 @@ class AuthorizeCallback {
 	private function output_consent_screen( string $state, array $client ): void {
 		nocache_headers();
 
-		// Text values are kept raw here and escaped at each output site inside
-		// the template. client_name and publisher come from the fetched CIMD
-		// document; keeping their escaping next to the echo/printf that renders
-		// them means a later refactor cannot silently drop it. URLs are
-		// esc_url'd here because they are only ever emitted into href/action
-		// attributes.
+		// Escaped at each output site inside the template. URLs are esc_url'd
+		// here since they're only ever emitted into href/action attributes.
 		$client_name = (string) ( $client['client_name'] ?? '' );
 		$client_id   = esc_url( (string) ( $client['client_id'] ?? '' ) );
 		$client_uri  = esc_url( (string) ( $client['client_uri'] ?? '' ) );
@@ -158,7 +151,7 @@ class AuthorizeCallback {
 	}
 
 	/**
-	 * Render a minimal standalone HTML consent page, then terminate the request.
+	 * Render the consent screen, then terminate the request.
 	 *
 	 * @param string               $state  OAuth state token.
 	 * @param array<string, mixed> $client Resolved CIMD client record.

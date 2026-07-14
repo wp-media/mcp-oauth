@@ -13,45 +13,16 @@ use WPMedia\MCP\OAuth\Views\Render;
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\AuthorizeCallback::handle_request
  *
- * The success path ends in `render_consent_screen()`, whose last statement is
- * a bare `exit` after delegating to `output_consent_screen()`. A bare `exit`
- * kills the PHPUnit process and there is no post-output hook to intercept it,
- * so `handle_request()` itself still cannot assert the rendered HTML body —
- * this test covers `handle_request()`'s guard checks and render-wiring only.
+ * The `render_consent_screen()` method ends in a bare `exit`, which kills
+ * the PHPUnit process — so this test can't assert past that point directly. It hooks
+ * the `language_attributes` filter (fired early in the template) to throw
+ * and unwind the stack before `exit`, proving guards passed and render was
+ * reached. (`nocache_headers()` can't be used for this instead: its
+ * `headers_sent()` guard is already tripped by the WP test bootstrap.)
  *
- * `render_consent_screen()`'s first statement (via `output_consent_screen()`)
- * is `nocache_headers()`, which would normally be the earliest interceptable
- * point (it applies the `nocache_headers` filter before any echo/exit). In
- * THIS test environment, however, `nocache_headers()` short-circuits via its
- * own `headers_sent()` guard: the WP test bootstrap ("Installing...", etc.)
- * already writes unbuffered output to STDOUT before any test runs, so
- * `headers_sent()` is permanently `true` for the whole process and the filter
- * never fires. The deepest point that *reliably* fires regardless of that is
- * the `language_attributes` filter, applied unconditionally by
- * `language_attributes()` a few bytes into the HTML output (`<html
- * <?php language_attributes(); ?>>`). The 'render' case intercepts there
- * instead — still before the bulk of the page and the final `exit` — which is
- * enough to prove every guard passed and the render step was reached, plus
- * assert the pre-render side effect (the state transient TTL refresh). The
- * handful of literal bytes echoed before that point are swallowed via
- * `ob_start()`/`ob_end_clean()` so they don't trip
- * `beStrictAboutOutputDuringTests`.
- *
- * The guard branches (wp_die()) are fully covered: the base integration
- * TestCase (via WP_UnitTestCase) already registers a `wp_die_handler` filter
- * that throws WPDieException carrying the message and response code, so no
- * extra filter wiring is needed here.
- *
- * Because `render_consent_screen()` was split (issue #19) into a two-line
- * `exit`-wrapping method and an `exit`-free `output_consent_screen()`, the
- * actual rendered HTML content — title, client name/link, client ID, verified
- * badge, scope sentence, hidden state field, nonce field, Allow/Deny buttons —
- * is asserted separately in `testShouldRenderConsentScreenContent()` below by
- * invoking `output_consent_screen()` directly via `ReflectionMethod`, with no
- * `exit`/filter-interception workaround needed. Both tests exist side by
- * side: this one proves `handle_request()`'s guards and state-transient
- * wiring reach the render step; the other proves the rendered content itself
- * is correct.
+ * The actual rendered content is asserted separately in
+ * testShouldRenderConsentScreenContent(), which invokes the exit-free
+ * output_consent_screen() directly via ReflectionMethod.
  *
  * @covers \WPMedia\MCP\OAuth\Auth\AuthorizeCallback::handle_request
  * @covers \WPMedia\MCP\OAuth\Auth\AuthorizeCallback::output_consent_screen
@@ -189,15 +160,9 @@ class HandleRequestTest extends TestCase {
 	}
 
 	/**
-	 * Client/expectation pairs for testShouldRenderConsentScreenContent(),
-	 * covering both the verified-publisher-badge-present and -absent cases.
-	 *
-	 * This is a dedicated local data provider, not the shared
-	 * `TestCase::configTestData()` fixture-file convention used by
-	 * testShouldHandleRequestAccordingToConfig() above — that convention loads
-	 * a file matching this class's own name/path, and reusing it here would
-	 * force unrelated die-outcome rows to also carry consent-screen content
-	 * expectations they have no use for.
+	 * Local data provider for testShouldRenderConsentScreenContent() — kept
+	 * separate from the shared configTestData fixture so unrelated die-outcome
+	 * rows don't need to carry consent-screen content expectations.
 	 *
 	 * @return array<string, array<string, mixed>>
 	 */
@@ -231,10 +196,8 @@ class HandleRequestTest extends TestCase {
 	}
 
 	/**
-	 * Asserts the actual rendered consent-screen content, invoking the
-	 * now-`exit`-free `output_consent_screen()` directly via `ReflectionMethod`
-	 * (PHP 8.1+ allows invoking private methods without `setAccessible()` — see
-	 * `Tests/Integration/Transport/OAuthHttpTransport/HandleRequestTest.php`).
+	 * Asserts the rendered consent-screen content, invoking the exit-free
+	 * output_consent_screen() directly via ReflectionMethod.
 	 *
 	 * @dataProvider consentScreenClientProvider
 	 *
