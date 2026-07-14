@@ -13,7 +13,7 @@ namespace WPMedia\MCP\OAuth\Transport;
 
 use WP\MCP\Infrastructure\Observability\Contracts\McpObservabilityHandlerInterface;
 use WP\MCP\Infrastructure\Observability\McpObservabilityHelperTrait;
-use WPMedia\MCP\OAuth\Auth\McpLogger;
+use WPMedia\MCP\OAuth\Logging\McpLogger;
 
 /**
  * Observability handler that writes MCP events to the MCP OAuth log.

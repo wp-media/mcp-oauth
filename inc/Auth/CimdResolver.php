@@ -16,6 +16,8 @@ declare(strict_types=1);
 
 namespace WPMedia\MCP\OAuth\Auth;
 
+use WPMedia\MCP\OAuth\Logging\McpLogger;
+
 class CimdResolver {
 	/**
 	 * Maximum size (bytes) of a metadata document we will read.

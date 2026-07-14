@@ -12,6 +12,8 @@ declare(strict_types=1);
 
 namespace WPMedia\MCP\OAuth\Auth;
 
+use WPMedia\MCP\OAuth\Logging\McpLogger;
+
 /**
  * Authorize Endpoint.
  */

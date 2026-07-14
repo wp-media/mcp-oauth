@@ -14,6 +14,8 @@ declare(strict_types=1);
 
 namespace WPMedia\MCP\OAuth\Auth;
 
+use WPMedia\MCP\OAuth\Logging\McpLogger;
+
 class ClaudeClientVerifier {
 	/**
 	 * Verify a fetched CIMD document against the trusted-publisher allowlist.

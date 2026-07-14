@@ -19,8 +19,8 @@ use WP\MCP\Transport\Infrastructure\HttpRequestHandler;
 use WP\MCP\Transport\Infrastructure\McpTransportContext;
 use WP\MCP\Transport\Infrastructure\McpTransportHelperTrait;
 use WPMedia\MCP\OAuth\Auth\JWT;
-use WPMedia\MCP\OAuth\Auth\McpLogger;
 use WPMedia\MCP\OAuth\Auth\SecretManager;
+use WPMedia\MCP\OAuth\Logging\McpLogger;
 
 /**
  * OAuth HTTP Transport for the MCP OAuth server.
