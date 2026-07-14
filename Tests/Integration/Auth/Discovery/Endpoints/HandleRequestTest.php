@@ -1,7 +1,7 @@
 <?php
 declare( strict_types=1 );
 
-namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\Discovery;
+namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\Discovery\Endpoints;
 
 use WPMedia\MCP\OAuth\Auth\Discovery\Endpoints;
 use WPMedia\MCP\OAuth\Context;
