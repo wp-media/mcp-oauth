@@ -1,7 +1,7 @@
 <?php
 declare( strict_types=1 );
 
-namespace WPMedia\MCP\OAuth\Tests\Integration\Transport;
+namespace WPMedia\MCP\OAuth\Tests\Integration\Transport\OAuthHttpTransport;
 
 use Mockery;
 use ReflectionMethod;
