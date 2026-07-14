@@ -1,7 +1,7 @@
 <?php
 declare( strict_types=1 );
 
-namespace WPMedia\MCP\OAuth\Tests\Integration\Auth;
+namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\RevokeEndpoint;
 
 use WPMedia\MCP\OAuth\Auth\JWT;
 use WPMedia\MCP\OAuth\Auth\RevokeEndpoint;
