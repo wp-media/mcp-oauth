@@ -27,7 +27,7 @@ use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
  * The deepest point that *reliably* fires regardless of that is the
  * `language_attributes` filter, applied unconditionally by
  * `language_attributes()` a few bytes into the HTML output (`<html
- * <?php language_attributes(); ?>>`). The success test intercepts there
+ * <?php language_attributes(); ?>>`). The 'render' case intercepts there
  * instead — still before the bulk of the page and the final `exit` — which is
  * enough to prove every guard passed and the render step was reached, plus
  * assert the pre-render side effect (the state transient TTL refresh). The
@@ -84,16 +84,18 @@ class HandleRequestTest extends TestCase {
 	}
 
 	/**
-	 * Rejects requests that fail a guard check before reaching the state transient
-	 * lookup / consent render, via wp_die().
+	 * Handles a callback request according to the given configuration: dies via
+	 * wp_die() when a guard check fails, or reaches render_consent_screen()
+	 * (refreshing the state transient TTL) when every guard passes.
 	 *
 	 * @dataProvider configTestData
 	 *
 	 * @param array<string, mixed> $config   Test configuration.
 	 * @param array<string, mixed> $expected Expected outcome.
 	 */
-	public function testShouldDieWhenAGuardCheckFails( array $config, array $expected ): void {
-		$state = 'test-state-token';
+	public function testShouldHandleRequestAccordingToConfig( array $config, array $expected ): void {
+		$state     = 'test-state-token';
+		$state_key = 'mcp_oauth_state_' . $state;
 
 		if ( $config['logged_in'] ) {
 			$user_id = self::factory()->user->create();
@@ -106,7 +108,7 @@ class HandleRequestTest extends TestCase {
 
 		if ( $config['set_transient'] ) {
 			set_transient(
-				'mcp_oauth_state_' . $state,
+				$state_key,
 				[
 					'client_id'   => 'https://claude.ai/oauth/client',
 					'client_name' => 'Claude',
@@ -114,48 +116,23 @@ class HandleRequestTest extends TestCase {
 					'verified'    => true,
 					'publisher'   => 'claude',
 				],
-				60
+				60 // Original authorize-time TTL; a 'render' outcome expects handle_request() to refresh it to CONSENT_TTL.
 			);
 		}
 
-		try {
-			( new AuthorizeCallback() )->handle_request();
-			$this->fail( 'Expected a WPDieException to be thrown.' );
-		} catch ( WPDieException $exception ) {
-			$this->assertSame( $expected['message'], $exception->getMessage() );
-			$this->assertSame( $expected['code'], $exception->getCode() );
+		if ( 'die' === $expected['outcome'] ) {
+			try {
+				( new AuthorizeCallback() )->handle_request();
+				$this->fail( 'Expected a WPDieException to be thrown.' );
+			} catch ( WPDieException $exception ) {
+				$this->assertSame( $expected['message'], $exception->getMessage() );
+				$this->assertSame( $expected['code'], $exception->getCode() );
+			}
+
+			delete_transient( $state_key );
+
+			return;
 		}
-
-		delete_transient( 'mcp_oauth_state_' . $state );
-	}
-
-	/**
-	 * Passes all guards, refreshes the state transient TTL, and reaches
-	 * render_consent_screen() when the user is logged in, a state parameter is
-	 * present, and its matching transient holds valid client data.
-	 *
-	 * @return void
-	 */
-	public function testShouldReachRenderConsentScreenWhenAllGuardsPass(): void {
-		$state     = 'test-state-token';
-		$state_key = 'mcp_oauth_state_' . $state;
-
-		$user_id = self::factory()->user->create();
-		wp_set_current_user( $user_id );
-
-		$_GET['state'] = $state;
-
-		set_transient(
-			$state_key,
-			[
-				'client_id'   => 'https://claude.ai/oauth/client',
-				'client_name' => 'Claude',
-				'client_uri'  => '',
-				'verified'    => true,
-				'publisher'   => 'claude',
-			],
-			60 // Original authorize-time TTL; handle_request() should refresh it to CONSENT_TTL.
-		);
 
 		// The 'language_attributes' filter is applied unconditionally by
 		// language_attributes(), a few bytes into the HTML render — unlike
