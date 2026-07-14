@@ -60,6 +60,15 @@ return [
 			'error_log_called' => false,
 		],
 	],
+	'testShouldNotWriteWhenWpDebugLogTrueAndWpDebugUndefined' => [
+		'config'   => [
+			'define_wp_debug_log' => true,
+			'wp_debug_log_value'  => true,
+		],
+		'expected' => [
+			'error_log_called' => false,
+		],
+	],
 	'testShouldWriteWhenWpDebugLogIsFilePathStringAndWpDebugTrue' => [
 		'config'   => [
 			'define_wp_debug_log' => true,
