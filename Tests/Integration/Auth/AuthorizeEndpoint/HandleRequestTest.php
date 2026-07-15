@@ -65,6 +65,7 @@ class HandleRequestTest extends TestCase {
 	public function tear_down(): void {
 		$_GET    = $this->get_backup; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$_SERVER = $this->server_backup;
+		wp_set_current_user( 0 );
 
 		parent::tear_down();
 	}
@@ -243,6 +244,11 @@ class HandleRequestTest extends TestCase {
 			$this->install_cimd_document( $get['client_id'], $config['cimd_document'] );
 		}
 
+		if ( $config['logged_in'] ?? false ) {
+			$user_id = self::factory()->user->create();
+			wp_set_current_user( $user_id );
+		}
+
 		$endpoint = new AuthorizeEndpoint( new CimdResolver( new ClaudeClientVerifier() ) );
 
 		switch ( $expected['type'] ) {
@@ -277,6 +283,17 @@ class HandleRequestTest extends TestCase {
 				$expected_callback = add_query_arg( 'state', rawurlencode( $get['state'] ), home_url( '/oauth/authorize-callback' ) );
 				$query             = $this->query_args( $location );
 				$this->assertSame( $expected_callback, $query['redirect_to'] ?? null );
+
+				$transient = get_transient( 'mcp_oauth_state_' . $get['state'] );
+				$this->assertSame( $expected['transient'], $transient );
+				break;
+
+			case 'authenticated_redirect':
+				$location = $this->capture_redirect( $endpoint );
+
+				$expected_callback = add_query_arg( 'state', rawurlencode( $get['state'] ), home_url( '/oauth/authorize-callback' ) );
+				$this->assertSame( $expected_callback, $location );
+				$this->assertStringNotContainsString( 'wp-login', $location );
 
 				$transient = get_transient( 'mcp_oauth_state_' . $get['state'] );
 				$this->assertSame( $expected['transient'], $transient );
