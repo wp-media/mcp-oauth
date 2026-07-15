@@ -1,0 +1,9 @@
+{
+  "mappings": {
+    "wp-content/plugins/mcp-oauth": "."
+  },
+  "config": {
+    "WP_DEBUG": true,
+    "SCRIPT_DEBUG": true
+  }
+}
