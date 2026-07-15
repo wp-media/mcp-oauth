@@ -27,6 +27,7 @@ use WPMedia\MCP\OAuth\Auth\SecretManager;
 use WPMedia\MCP\OAuth\Auth\TokenEndpoint;
 use WPMedia\MCP\OAuth\Transport\Server;
 use WPMedia\MCP\OAuth\Transport\ServerRegistrar;
+use WPMedia\MCP\OAuth\Views\Render;
 
 /**
  * Centralized single-instance bootstrap for the MCP OAuth library.
@@ -139,7 +140,7 @@ final class Bootstrap {
 		$router = new Router(
 			new Rewrite(),
 			$authorize,
-			new AuthorizeCallback(),
+			new AuthorizeCallback( new Render() ),
 			new TokenEndpoint(),
 			new ConsentEndpoint(),
 			new RevokeEndpoint(),

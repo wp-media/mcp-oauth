@@ -3,44 +3,29 @@ declare( strict_types=1 );
 
 namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\AuthorizeCallback;
 
+use ReflectionMethod;
 use RuntimeException;
 use WPDieException;
 use WPMedia\MCP\OAuth\Auth\AuthorizeCallback;
 use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
+use WPMedia\MCP\OAuth\Views\Render;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\AuthorizeCallback::handle_request
  *
- * The success path ends in `render_consent_screen()`, whose last statement is
- * a bare `exit` after echoing the full HTML consent page. A bare `exit` kills
- * the PHPUnit process and there is no post-output hook to intercept it, so the
- * HTML body itself is intentionally NOT asserted here (would require a source
- * refactor, which is out of scope).
+ * The `render_consent_screen()` method ends in a bare `exit`, which kills
+ * the PHPUnit process — so this test can't assert past that point directly. It hooks
+ * the `language_attributes` filter (fired early in the template) to throw
+ * and unwind the stack before `exit`, proving guards passed and render was
+ * reached. (`nocache_headers()` can't be used for this instead: its
+ * `headers_sent()` guard is already tripped by the WP test bootstrap.)
  *
- * `render_consent_screen()`'s first statement is `nocache_headers()`, which
- * would normally be the earliest interceptable point (it applies the
- * `nocache_headers` filter before any echo/exit). In THIS test environment,
- * however, `nocache_headers()` short-circuits via its own `headers_sent()`
- * guard: the WP test bootstrap ("Installing...", etc.) already writes
- * unbuffered output to STDOUT before any test runs, so `headers_sent()` is
- * permanently `true` for the whole process and the filter never fires.
- * The deepest point that *reliably* fires regardless of that is the
- * `language_attributes` filter, applied unconditionally by
- * `language_attributes()` a few bytes into the HTML output (`<html
- * <?php language_attributes(); ?>>`). The 'render' case intercepts there
- * instead — still before the bulk of the page and the final `exit` — which is
- * enough to prove every guard passed and the render step was reached, plus
- * assert the pre-render side effect (the state transient TTL refresh). The
- * handful of literal bytes echoed before that point are swallowed via
- * `ob_start()`/`ob_end_clean()` so they don't trip
- * `beStrictAboutOutputDuringTests`.
- *
- * The guard branches (wp_die()) are fully covered: the base integration
- * TestCase (via WP_UnitTestCase) already registers a `wp_die_handler` filter
- * that throws WPDieException carrying the message and response code, so no
- * extra filter wiring is needed here.
+ * The actual rendered content is asserted separately in
+ * testShouldRenderConsentScreenContent(), which invokes the exit-free
+ * output_consent_screen() directly via ReflectionMethod.
  *
  * @covers \WPMedia\MCP\OAuth\Auth\AuthorizeCallback::handle_request
+ * @covers \WPMedia\MCP\OAuth\Auth\AuthorizeCallback::output_consent_screen
  */
 class HandleRequestTest extends TestCase {
 
@@ -122,7 +107,7 @@ class HandleRequestTest extends TestCase {
 
 		if ( 'die' === $expected['outcome'] ) {
 			try {
-				( new AuthorizeCallback() )->handle_request();
+				( new AuthorizeCallback( new Render() ) )->handle_request();
 				$this->fail( 'Expected a WPDieException to be thrown.' );
 			} catch ( WPDieException $exception ) {
 				$this->assertSame( $expected['message'], $exception->getMessage() );
@@ -155,7 +140,7 @@ class HandleRequestTest extends TestCase {
 		ob_start();
 
 		try {
-			( new AuthorizeCallback() )->handle_request();
+			( new AuthorizeCallback( new Render() ) )->handle_request();
 			$this->fail( 'Expected render_consent_screen() to be reached and throw.' );
 		} catch ( RuntimeException $exception ) {
 			$this->assertSame( 'RENDER_REACHED', $exception->getMessage() );
@@ -172,5 +157,80 @@ class HandleRequestTest extends TestCase {
 		$this->assertGreaterThan( time() + 200, $timeout, 'The state transient TTL should have been refreshed to CONSENT_TTL.' );
 
 		delete_transient( $state_key );
+	}
+
+	/**
+	 * Local data provider for testShouldRenderConsentScreenContent() — kept
+	 * separate from the shared configTestData fixture so unrelated die-outcome
+	 * rows don't need to carry consent-screen content expectations.
+	 *
+	 * @return array<string, array<string, mixed>>
+	 */
+	public function consentScreenClientProvider(): array {
+		return [
+			'verified publisher'   => [
+				'client'   => [
+					'client_id'   => 'https://claude.ai/oauth/client',
+					'client_name' => 'Claude',
+					'client_uri'  => 'https://claude.ai',
+					'verified'    => true,
+					'publisher'   => 'Anthropic',
+				],
+				'expected' => [
+					'verified_badge_present' => true,
+				],
+			],
+			'unverified publisher' => [
+				'client'   => [
+					'client_id'   => 'https://example.com/oauth/client',
+					'client_name' => 'Example Client',
+					'client_uri'  => '',
+					'verified'    => false,
+					'publisher'   => '',
+				],
+				'expected' => [
+					'verified_badge_present' => false,
+				],
+			],
+		];
+	}
+
+	/**
+	 * Asserts the rendered consent-screen content, invoking the exit-free
+	 * output_consent_screen() directly via ReflectionMethod.
+	 *
+	 * @dataProvider consentScreenClientProvider
+	 *
+	 * @param array<string, mixed> $client   CIMD client record passed to output_consent_screen().
+	 * @param array<string, mixed> $expected Expected outcome.
+	 */
+	public function testShouldRenderConsentScreenContent( array $client, array $expected ): void {
+		$state       = 'test-state-token';
+		$site_name   = (string) get_bloginfo( 'name' );
+		$callback    = new AuthorizeCallback( new Render() );
+		$method      = new ReflectionMethod( AuthorizeCallback::class, 'output_consent_screen' );
+		$display_uri = '' !== $client['client_uri'] ? $client['client_uri'] : $client['client_id'];
+
+		ob_start();
+		$method->invoke( $callback, $state, $client );
+		$html = ob_get_clean();
+
+		$this->assertStringContainsString( '<title>Authorize Access — ' . $site_name . '</title>', $html );
+		$this->assertStringContainsString( '<h1>Authorize access to your site?</h1>', $html );
+		$this->assertStringContainsString( '<a href="' . esc_url( $display_uri ) . '" rel="noopener noreferrer" target="_blank">' . esc_html( $client['client_name'] ) . '</a>', $html );
+		$this->assertStringContainsString( '<a href="' . esc_url( $client['client_id'] ) . '" rel="noopener noreferrer" target="_blank">' . esc_html( $client['client_id'] ) . '</a>', $html );
+
+		if ( $expected['verified_badge_present'] ) {
+			$this->assertStringContainsString( '<div class="verified-badge">', $html );
+			$this->assertStringContainsString( 'Verified publisher: ' . $client['publisher'], $html );
+		} else {
+			$this->assertStringNotContainsString( '<div class="verified-badge">', $html );
+		}
+
+		$this->assertStringContainsString( '<strong>' . $client['client_name'] . '</strong> is requesting access to the MCP tools on <strong>' . $site_name . '</strong> on your behalf.', $html );
+		$this->assertStringContainsString( '<input type="hidden" name="state" value="' . $state . '">', $html );
+		$this->assertStringContainsString( 'name="mcp_consent_nonce"', $html );
+		$this->assertStringContainsString( '<button type="submit" name="mcp_action" value="allow" class="btn btn-allow">', $html );
+		$this->assertStringContainsString( '<button type="submit" name="mcp_action" value="deny" class="btn btn-deny">', $html );
 	}
 }

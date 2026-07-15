@@ -78,6 +78,8 @@ are re-flushed on the next request.
 - **`Transport\ServerRegistrar`** — registers the MCP OAuth server (and, when
   needed, the shared `mcp-adapter` abilities) with `wordpress/mcp-adapter`.
 - **`Context`** — the single `is_enabled()` gate consulted everywhere.
+- **`Views\Render`** — generic view renderer. Loads a named template and
+  executes it with `$data` in scope; used by `Auth\AuthorizeCallback` for the consent screen.
 
 ## Logging
 
