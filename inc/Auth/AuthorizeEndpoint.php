@@ -3,9 +3,12 @@
  * Authorization Endpoint.
  *
  * Handles GET /oauth/authorize — validates the PKCE parameters, stores the
- * challenge in a 60-second transient, then redirects the browser to the
- * WordPress login form.  After successful login WordPress delivers the user
- * to /oauth/authorize-callback where the auth code is issued.
+ * challenge in a 60-second transient, then routes the browser onward: a
+ * user with an existing WordPress session is redirected straight to
+ * /oauth/authorize-callback; otherwise the browser goes to the WordPress
+ * login form first, and WordPress delivers the user back to
+ * /oauth/authorize-callback after a successful login, where the auth code
+ * is issued.
  */
 
 declare(strict_types=1);
@@ -157,7 +160,21 @@ class AuthorizeEndpoint {
 		// home_url(): the callback is a rewrite endpoint served from the Site Address,
 		// so it must match home_url() and not get_site_url() on split-directory installs.
 		$callback_url = add_query_arg( 'state', rawurlencode( $state ), home_url( '/oauth/authorize-callback' ) );
-		$login_url    = wp_login_url( $callback_url );
+
+		if ( is_user_logged_in() ) {
+			McpLogger::log(
+				'AUTHORIZE',
+				'existing session, skipping login',
+				[
+					'state'        => $state,
+					'callback_url' => $callback_url,
+				]
+			);
+			wp_redirect( $callback_url ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- server-constructed home_url() target.
+			exit;
+		}
+
+		$login_url = wp_login_url( $callback_url );
 
 		McpLogger::log(
 			'AUTHORIZE',

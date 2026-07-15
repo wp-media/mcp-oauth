@@ -147,6 +147,29 @@ return [
 			],
 		],
 	],
+	'testShouldRedirectDirectlyToConsentWhenAlreadyLoggedIn' => [
+		'config'   => [
+			'get'                => [],
+			'trusted_host'       => 'good-client.example',
+			'trusted_client_ids' => [ 'https://good-client.example/app' ],
+			'cimd_document'      => [],
+			'logged_in'          => true,
+		],
+		'expected' => [
+			'type'      => 'authenticated_redirect',
+			'transient' => [
+				'client_id'             => 'https://good-client.example/app',
+				'client_name'           => 'Example App',
+				'client_uri'            => 'https://client.example',
+				'verified'              => true,
+				'publisher'             => 'test',
+				'redirect_uri'          => 'https://client.example/callback',
+				'code_challenge'        => 'challenge-value',
+				'code_challenge_method' => 'S256',
+				'state'                 => 'state-value',
+			],
+		],
+	],
 	'testShouldAcceptLoopbackRedirectUriRegardlessOfPort' => [
 		'config'   => [
 			'get'                => [ 'redirect_uri' => 'http://127.0.0.1:51204/cb' ],
