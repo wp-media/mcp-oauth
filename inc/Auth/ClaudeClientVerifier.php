@@ -83,6 +83,18 @@ class ClaudeClientVerifier {
 	 * @return array<string, array<string, mixed>>
 	 */
 	private function get_trusted_publishers(): array {
+		$publishers = [
+			'claude' => [
+				'client_ids' => [
+					'https://claude.ai/oauth/claude-code-client-metadata',
+					'https://claude.ai/oauth/mcp-oauth-client-metadata',
+				],
+				'host'       => 'claude.ai',
+			],
+		];
+
+		$publishers = apply_filters_deprecated( 'rocket_mcp_trusted_publishers', [ $publishers ], '1.0.1', 'wpmedia_mcp_oauth_trusted_publishers' );
+
 		/**
 		 * Filters the trusted-publisher allowlist for MCP OAuth client verification.
 		 *
@@ -96,25 +108,10 @@ class ClaudeClientVerifier {
 		 * only ADD trusted publishers; it does not bypass the exact client_id match in
 		 * matches_publisher() or the "verified" hard-reject in AuthorizeEndpoint::handle_request().
 		 *
-		 * @param array<string, array{client_ids: string[], host: string}> $trusted_publishers Trusted-publisher allowlist.
+		 * @param array<string, array{client_ids: string[], host: string}> $publishers Trusted-publisher allowlist.
 		 * @return array<string, array{client_ids: string[], host: string}>
 		 */
-		$trusted_publishers = wpm_apply_filters_typed(
-			'array',
-			'wpmedia_mcp_oauth_trusted_publishers',
-			[
-				'claude' => [
-					'client_ids' => [
-						'https://claude.ai/oauth/claude-code-client-metadata',
-						'https://claude.ai/oauth/mcp-oauth-client-metadata',
-					],
-					'host'       => 'claude.ai',
-				],
-			]
-		);
-
-		// Back-compat: honor the legacy WP Rocket-era filter name for one deprecation cycle.
-		return wpm_apply_filters_typed( 'array', 'rocket_mcp_trusted_publishers', $trusted_publishers );
+		return wpm_apply_filters_typed( 'array', 'wpmedia_mcp_oauth_trusted_publishers', $publishers );
 	}
 
 	/**

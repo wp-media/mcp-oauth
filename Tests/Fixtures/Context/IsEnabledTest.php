@@ -9,6 +9,7 @@ return [
 		'expected' => [
 			'result'          => false,
 			'incorrect_usage' => false,
+			'deprecated'      => false,
 		],
 	],
 	'testShouldReturnTrueWhenPrimaryFilterEnablesIt'       => [
@@ -19,6 +20,7 @@ return [
 		'expected' => [
 			'result'          => true,
 			'incorrect_usage' => false,
+			'deprecated'      => false,
 		],
 	],
 	'testShouldReturnTrueWhenLegacyFilterEnablesItAndPrimaryIsNotRegistered' => [
@@ -29,16 +31,29 @@ return [
 		'expected' => [
 			'result'          => true,
 			'incorrect_usage' => false,
+			'deprecated'      => true,
 		],
 	],
-	'testShouldLetLegacyFilterOverridePrimaryFilterResult' => [
+	'testShouldLetPrimaryFilterOverrideLegacyFilterResult' => [
 		'config'   => [
 			'primary' => true,
 			'legacy'  => false,
 		],
 		'expected' => [
+			'result'          => true,
+			'incorrect_usage' => false,
+			'deprecated'      => true,
+		],
+	],
+	'testShouldLetPrimaryFilterDisableWhatTheLegacyFilterEnabled' => [
+		'config'   => [
+			'primary' => false,
+			'legacy'  => true,
+		],
+		'expected' => [
 			'result'          => false,
 			'incorrect_usage' => false,
+			'deprecated'      => true,
 		],
 	],
 	'testShouldFallBackToDefaultWhenPrimaryFilterReturnsNonBoolean' => [
@@ -49,16 +64,18 @@ return [
 		'expected' => [
 			'result'          => false,
 			'incorrect_usage' => true,
+			'deprecated'      => false,
 		],
 	],
-	'testShouldFallBackToPrimaryResultWhenLegacyFilterReturnsNonBoolean' => [
+	'testShouldIgnoreNonBooleanLegacyValueWhenPrimaryFilterWins' => [
 		'config'   => [
 			'primary' => true,
 			'legacy'  => 'not-a-boolean',
 		],
 		'expected' => [
 			'result'          => true,
-			'incorrect_usage' => true,
+			'incorrect_usage' => false,
+			'deprecated'      => true,
 		],
 	],
 ];

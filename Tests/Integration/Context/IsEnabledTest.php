@@ -44,6 +44,10 @@ class IsEnabledTest extends TestCase {
 			$this->setExpectedIncorrectUsage( 'wpm_apply_filters_typed' );
 		}
 
+		if ( $expected['deprecated'] ) {
+			$this->setExpectedDeprecated( 'rocket_mcp_oauth_server_enabled' );
+		}
+
 		$this->assertSame( $expected['result'], ( new Context() )->is_enabled() );
 	}
 }
