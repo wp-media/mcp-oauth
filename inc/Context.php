@@ -11,6 +11,8 @@ class Context {
 	 *              discovery documents, transport) should be registered; false otherwise.
 	 */
 	public function is_enabled(): bool {
+		$enabled = apply_filters_deprecated( 'rocket_mcp_oauth_server_enabled', [ false ], '1.0.1', 'wpmedia_mcp_oauth_server_enabled' );
+
 		/**
 		 * Filters whether the MCP OAuth server is enabled.
 		 *
@@ -20,9 +22,6 @@ class Context {
 		 *
 		 * @param bool $enabled Whether the MCP OAuth server is enabled. Default false.
 		 */
-		$enabled = wpm_apply_filters_typed( 'boolean', 'wpmedia_mcp_oauth_server_enabled', false );
-
-		// Back-compat: honor the legacy WP Rocket-era filter name for one deprecation cycle.
-		return wpm_apply_filters_typed( 'boolean', 'rocket_mcp_oauth_server_enabled', $enabled );
+		return wpm_apply_filters_typed( 'boolean', 'wpmedia_mcp_oauth_server_enabled', $enabled );
 	}
 }
