@@ -150,6 +150,34 @@ class HandleRequestTest extends TestCase {
 	}
 
 	/**
+	 * Builds a CimdResolver whose native cURL connect-only preflight is stubbed
+	 * to report a fixed public IP.
+	 *
+	 * `CimdResolver::connect_and_get_ip()` performs a raw `curl_exec()` that
+	 * `pre_http_request` cannot intercept and that would legitimately fail
+	 * against the reserved `*.example` test hosts these scenarios use. Overriding
+	 * it to return a public IP lets the real `AuthorizeEndpoint` client-resolution
+	 * logic run unchanged while the document fetch stays faked via
+	 * `install_cimd_document()`. No real network connection is made.
+	 *
+	 * @return CimdResolver
+	 */
+	private function make_resolver(): CimdResolver {
+		return new class( new ClaudeClientVerifier() ) extends CimdResolver {
+
+			/**
+			 * Returns a fixed public IP instead of a real cURL connect.
+			 *
+			 * @param string $host The client_id URL host.
+			 * @return string
+			 */
+			protected function connect_and_get_ip( string $host ): string {
+				return '93.184.216.34';
+			}
+		};
+	}
+
+	/**
 	 * A default set of valid request parameters, overridable per scenario.
 	 *
 	 * @param array<string, mixed> $overrides Values to override/unset (set to null to unset).
@@ -249,7 +277,7 @@ class HandleRequestTest extends TestCase {
 			wp_set_current_user( $user_id );
 		}
 
-		$endpoint = new AuthorizeEndpoint( new CimdResolver( new ClaudeClientVerifier() ) );
+		$endpoint = new AuthorizeEndpoint( $this->make_resolver() );
 
 		switch ( $expected['type'] ) {
 			case 'die':
