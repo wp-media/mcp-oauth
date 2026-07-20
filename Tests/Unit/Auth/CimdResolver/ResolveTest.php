@@ -12,6 +12,11 @@ use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\CimdResolver::resolve
  *
+ * The DNS-rebinding preflight (connect_and_get_ip()) wraps native cURL calls
+ * that cannot run under Brain\Monkey, so it is partial-mocked here: the real
+ * resolve()/fetch_document()/is_ip_allowed() logic runs while only the native
+ * connect step is stubbed. No real network or cURL call is ever made.
+ *
  * @covers \WPMedia\MCP\OAuth\Auth\CimdResolver::resolve
  */
 class ResolveTest extends TestCase {
@@ -65,6 +70,28 @@ class ResolveTest extends TestCase {
 			$verifier->shouldNotReceive( 'verify' );
 		}
 
+		// Partial mock: only the native-call preflight is stubbed; resolve(),
+		// fetch_document() and is_ip_allowed() run for real.
+		$resolver = Mockery::mock( CimdResolver::class . '[connect_and_get_ip]', [ $verifier ] );
+		$resolver->shouldAllowMockingProtectedMethods();
+
+		if ( $expected['preflight'] ) {
+			// The cURL extension is loaded in the test environment, so the real
+			// extension_loaded('curl') check passes and the preflight branch is
+			// reached; connect_and_get_ip() is stubbed so no real cURL call runs.
+			Functions\when( 'add_action' )->justReturn( true );
+			Functions\when( 'remove_action' )->justReturn( true );
+
+			$host       = (string) wp_parse_url( $config['client_id'], PHP_URL_HOST );
+			$connect_ip = array_key_exists( 'connect_ip', $config ) ? $config['connect_ip'] : '93.184.216.34';
+			$resolver->shouldReceive( 'connect_and_get_ip' )
+				->once()
+				->with( $host )
+				->andReturn( $connect_ip );
+		} else {
+			$resolver->shouldReceive( 'connect_and_get_ip' )->never();
+		}
+
 		$cache_key = CimdResolver::CACHE_PREFIX . md5( $config['client_id'] );
 
 		if ( $expected['cache_checked'] ) {
@@ -103,9 +130,69 @@ class ResolveTest extends TestCase {
 			Functions\expect( 'set_transient' )->never();
 		}
 
+		$this->assertSame( $expected['result'], $resolver->resolve( $config['client_id'] ) );
+	}
+
+	/**
+	 * Emits the distinct 'explicit port not allowed' reason for a client_id
+	 * that carries an explicit port, rather than the generic 'invalid client_id
+	 * url' reason, so a legitimate non-standard-port publisher is diagnosable.
+	 *
+	 * WP_DEBUG/WP_DEBUG_LOG are define()-once constants; @runInSeparateProcess
+	 * forks a fresh process so they never leak, matching McpLogger\LogTest. The
+	 * log line is asserted by pointing the error_log ini directive at a scratch
+	 * file (Patchwork will not redefine error_log without extra config).
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 *
+	 * @dataProvider explicitPortProvider
+	 *
+	 * @param string $client_id A client_id URL carrying an explicit port.
+	 */
+	public function testShouldLogDistinctReasonForExplicitPort( string $client_id ): void {
+		define( 'WP_DEBUG', true );
+		define( 'WP_DEBUG_LOG', true );
+
+		Functions\when( 'wp_parse_url' )->alias( 'parse_url' );
+		Functions\when( 'wp_json_encode' )->alias(
+			static function ( $data ) {
+				return json_encode( $data ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Brain\Monkey unit test with no WP runtime; wp_json_encode() is stubbed to this.
+			}
+		);
+
+		$log_file = tempnam( sys_get_temp_dir(), 'mcp-oauth-resolve-porttest-' );
+		ini_set( 'error_log', $log_file ); // phpcs:ignore WordPress.PHP.IniSet.Risky -- test-only, redirects error_log() to a scratch file in an isolated process; never runs in production.
+
+		$verifier = Mockery::mock( ClaudeClientVerifier::class );
+		$verifier->shouldNotReceive( 'is_trusted_host' );
 		$resolver = new CimdResolver( $verifier );
 
-		$this->assertSame( $expected['result'], $resolver->resolve( $config['client_id'] ) );
+		try {
+			$this->assertNull( $resolver->resolve( $client_id ) );
+
+			$written = file_exists( $log_file ) ? (string) file_get_contents( $log_file ) : ''; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reading a local scratch file, not a remote URL.
+
+			$this->assertStringContainsString( 'rejected: explicit port not allowed', $written );
+			$this->assertStringNotContainsString( 'rejected: invalid client_id url', $written );
+		} finally {
+			if ( file_exists( $log_file ) ) {
+				unlink( $log_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- wp_delete_file() requires WordPress; this is a Brain\Monkey unit test.
+			}
+		}
+	}
+
+	/**
+	 * Data provider: client_id URLs with an explicit port (both a non-standard
+	 * port and an explicit :443).
+	 *
+	 * @return array<string, array{0: string}>
+	 */
+	public function explicitPortProvider(): array {
+		return [
+			'non-standard port' => [ 'https://example.com:8080/cimd.json' ],
+			'explicit 443'      => [ 'https://example.com:443/cimd.json' ],
+		];
 	}
 
 	/**

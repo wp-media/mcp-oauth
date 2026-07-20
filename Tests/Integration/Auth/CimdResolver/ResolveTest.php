@@ -18,6 +18,12 @@ use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
  * scenarios (invalid client_id shape, untrusted host) never reach the fetch
  * step, so no filter is required for them.
  *
+ * The connect-only DNS-rebinding preflight (connect_and_get_ip()) makes a raw
+ * cURL call that `pre_http_request` cannot intercept, so the resolver returned
+ * by stubbed_resolver() overrides it to report a controlled IP — no real
+ * network or cURL connection is ever made. The private-IP scenario proves the
+ * fetch is rejected before wp_safe_remote_get() is reached.
+ *
  * @covers \WPMedia\MCP\OAuth\Auth\CimdResolver::resolve
  */
 class ResolveTest extends TestCase {
@@ -68,6 +74,18 @@ class ResolveTest extends TestCase {
 	}
 
 	/**
+	 * Rejects a client_id URL that carries an explicit port up front, before any
+	 * preflight or fetch, so the CURLOPT_RESOLVE pin cannot be bypassed.
+	 *
+	 * @return void
+	 */
+	public function testShouldReturnNullForClientIdWithExplicitPort(): void {
+		$resolver = new CimdResolver( new ClaudeClientVerifier() );
+
+		$this->assertNull( $resolver->resolve( 'https://claude.ai:8080/oauth/claude-code-client-metadata' ) );
+	}
+
+	/**
 	 * Rejects a well-formed client_id URL whose host is not on the
 	 * trusted-publisher allowlist, without ever fetching it.
 	 *
@@ -82,6 +100,64 @@ class ResolveTest extends TestCase {
 	}
 
 	/**
+	 * Rejects the fetch when the preflight connects to a private IP: the
+	 * disallowed-IP guard runs before wp_safe_remote_get(), so no document is
+	 * fetched even for an allowlisted host.
+	 *
+	 * @return void
+	 */
+	public function testShouldReturnNullWhenPreflightConnectsToPrivateIp(): void {
+		add_filter(
+			'pre_http_request',
+			function ( $preempt, $parsed_args, $url ) {
+				if ( self::TRUSTED_CLIENT_ID === $url ) {
+					++$this->fetch_calls;
+				}
+
+				return $preempt;
+			},
+			10,
+			3
+		);
+
+		$resolver = $this->stubbed_resolver( '10.0.0.5' );
+
+		$this->assertNull( $resolver->resolve( self::TRUSTED_CLIENT_ID ) );
+		$this->assertSame( 0, $this->fetch_calls, 'A private connected IP must be rejected before any HTTP fetch.' );
+	}
+
+	/**
+	 * Rejects a fetched document whose Content-Type is present but not JSON.
+	 *
+	 * @return void
+	 */
+	public function testShouldReturnNullWhenContentTypeIsPresentAndNotJson(): void {
+		$this->fake_fetch( 'text/html' );
+
+		$resolver = $this->stubbed_resolver( '93.184.216.34' );
+
+		$this->assertNull( $resolver->resolve( self::TRUSTED_CLIENT_ID ) );
+	}
+
+	/**
+	 * Tolerates an absent Content-Type header and resolves the document, since
+	 * the body is independently validated.
+	 *
+	 * @return void
+	 */
+	public function testShouldResolveWhenContentTypeIsAbsent(): void {
+		$this->fake_fetch( null );
+
+		$resolver = $this->stubbed_resolver( '93.184.216.34' );
+
+		$record = $resolver->resolve( self::TRUSTED_CLIENT_ID );
+
+		$this->assertIsArray( $record );
+		$this->assertSame( self::TRUSTED_CLIENT_ID, $record['client_id'] );
+		$this->assertTrue( $record['verified'] );
+	}
+
+	/**
 	 * Fetches and validates a document for a trusted publisher, caches it,
 	 * then serves the second resolve() call from the transient cache without
 	 * fetching again.
@@ -89,42 +165,9 @@ class ResolveTest extends TestCase {
 	 * @return void
 	 */
 	public function testShouldFetchValidateAndCacheDocumentThenServeFromCacheOnSecondCall(): void {
-		$doc = [
-			'client_id'                  => self::TRUSTED_CLIENT_ID,
-			'client_name'                => 'Claude',
-			'redirect_uris'              => [ 'https://claude.ai/api/mcp/auth_callback' ],
-			'grant_types'                => [ 'authorization_code', 'refresh_token' ],
-			'token_endpoint_auth_method' => 'none',
-		];
+		$this->fake_fetch( 'application/json' );
 
-		add_filter(
-			'pre_http_request',
-			function ( $preempt, $parsed_args, $url ) use ( $doc ) {
-				if ( self::TRUSTED_CLIENT_ID !== $url ) {
-					return $preempt;
-				}
-
-				++$this->fetch_calls;
-
-				return [
-					'response' => [
-						'code'    => 200,
-						'message' => 'OK',
-					],
-					'body'     => wp_json_encode( $doc ),
-					'headers'  => [
-						'content-type'  => 'application/json',
-						'cache-control' => 'max-age=3600',
-					],
-					'cookies'  => [],
-					'filename' => null,
-				];
-			},
-			10,
-			3
-		);
-
-		$resolver = new CimdResolver( new ClaudeClientVerifier() );
+		$resolver = $this->stubbed_resolver( '93.184.216.34' );
 
 		$first = $resolver->resolve( self::TRUSTED_CLIENT_ID );
 
@@ -141,5 +184,92 @@ class ResolveTest extends TestCase {
 
 		$this->assertSame( $first, $second );
 		$this->assertSame( 1, $this->fetch_calls, 'The second resolve() call should be served from cache, without a second HTTP fetch.' );
+	}
+
+	/**
+	 * Builds a CimdResolver whose native cURL connect-only preflight is stubbed
+	 * to report a fixed IP, so the DNS-rebinding orchestration can be exercised
+	 * without a real connection.
+	 *
+	 * @param string|null $ip The IP the stubbed preflight reports as connected.
+	 * @return CimdResolver
+	 */
+	private function stubbed_resolver( ?string $ip ): CimdResolver {
+		return new class( new ClaudeClientVerifier(), $ip ) extends CimdResolver {
+
+			/**
+			 * IP the stubbed preflight reports as the connected address.
+			 *
+			 * @var string|null
+			 */
+			private $stub_ip;
+
+			/**
+			 * Sets up the resolver with a stubbed preflight IP.
+			 *
+			 * @param ClaudeClientVerifier $verifier Trusted-publisher verifier.
+			 * @param string|null          $stub_ip  Stubbed connected IP.
+			 */
+			public function __construct( ClaudeClientVerifier $verifier, ?string $stub_ip ) {
+				parent::__construct( $verifier );
+				$this->stub_ip = $stub_ip;
+			}
+
+			/**
+			 * Returns the configured stub IP instead of a real cURL connect.
+			 *
+			 * @param string $host The client_id URL host.
+			 * @return string|null
+			 */
+			protected function connect_and_get_ip( string $host ): ?string {
+				return $this->stub_ip;
+			}
+		};
+	}
+
+	/**
+	 * Registers a `pre_http_request` short-circuit that returns a canned CIMD
+	 * document for the trusted client_id, with the given Content-Type header.
+	 *
+	 * @param string|null $content_type Content-Type header value, or null to omit it.
+	 * @return void
+	 */
+	private function fake_fetch( ?string $content_type ): void {
+		$doc = [
+			'client_id'                  => self::TRUSTED_CLIENT_ID,
+			'client_name'                => 'Claude',
+			'redirect_uris'              => [ 'https://claude.ai/api/mcp/auth_callback' ],
+			'grant_types'                => [ 'authorization_code', 'refresh_token' ],
+			'token_endpoint_auth_method' => 'none',
+		];
+
+		add_filter(
+			'pre_http_request',
+			function ( $preempt, $parsed_args, $url ) use ( $doc, $content_type ) {
+				if ( self::TRUSTED_CLIENT_ID !== $url ) {
+					return $preempt;
+				}
+
+				++$this->fetch_calls;
+
+				$headers = [ 'cache-control' => 'max-age=3600' ];
+				if ( null !== $content_type ) {
+					$headers['content-type'] = $content_type;
+				}
+
+				return [
+					'response' => [
+						'code'    => 200,
+						'message' => 'OK',
+					],
+					'body'     => wp_json_encode( $doc ),
+					'headers'  => $headers,
+					'cookies'  => [],
+					'filename' => null,
+				];
+			},
+			10,
+			3
+		);
 	}
 }

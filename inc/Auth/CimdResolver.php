@@ -30,6 +30,17 @@ class CimdResolver {
 	const FETCH_TIMEOUT = 5;
 
 	/**
+	 * Timeout (seconds) for the connect-only DNS-rebinding preflight.
+	 *
+	 * Kept well below FETCH_TIMEOUT so the preflight is a cheap, strictly
+	 * time-bounded gate rather than a second full fetch: a TCP+TLS connect to a
+	 * legitimate public host is normally well under a second, so 2s is generous
+	 * headroom while capping the worst-case worker hang on a slow/unresponsive
+	 * client_id host (was open-ended under a raw OS-resolver lookup).
+	 */
+	const CONNECT_TIMEOUT = 2;
+
+	/**
 	 * Transient key prefix for cached, validated documents.
 	 */
 	const CACHE_PREFIX = 'mcp_cimd_';
@@ -63,7 +74,17 @@ class CimdResolver {
 	 */
 	public function resolve( string $client_id ): ?array {
 		if ( ! $this->is_valid_client_id_url( $client_id ) ) {
-			McpLogger::log( 'CIMD', 'rejected: invalid client_id url', [ 'client_id' => $client_id ] );
+			// is_valid_client_id_url() also rejects any explicit port (see 4.0):
+			// a client_id carrying a non-443 port would silently bypass the
+			// host:443:ip CURLOPT_RESOLVE pin, so it is refused up front. Emit a
+			// distinct reason for that case so an operator can tell a legitimate
+			// non-standard-port publisher apart from a genuinely malformed URL.
+			$parts = wp_parse_url( $client_id );
+			if ( is_array( $parts ) && isset( $parts['port'] ) ) {
+				McpLogger::log( 'CIMD', 'rejected: explicit port not allowed', [ 'client_id' => $client_id ] );
+			} else {
+				McpLogger::log( 'CIMD', 'rejected: invalid client_id url', [ 'client_id' => $client_id ] );
+			}
 			return null;
 		}
 
@@ -137,6 +158,15 @@ class CimdResolver {
 			return false;
 		}
 
+		// Reject any explicit port. CIMD client_id URLs use the default HTTPS
+		// port 443; wp_parse_url() only populates $parts['port'] for an explicit
+		// port. Rejecting it guarantees the connection always uses 443, so the
+		// "host:443:ip" CURLOPT_RESOLVE pin built in build_resolve_pin() always
+		// matches the request's host:port and cannot be silently bypassed.
+		if ( isset( $parts['port'] ) ) {
+			return false;
+		}
+
 		return true;
 	}
 
@@ -147,15 +177,57 @@ class CimdResolver {
 	 * @return array{doc: array<string, mixed>, ttl: int}|null Decoded document and cache TTL, or null on failure.
 	 */
 	private function fetch_document( string $url ) {
-		$response = wp_safe_remote_get(
-			$url,
-			[
-				'timeout'             => self::FETCH_TIMEOUT,
-				'redirection'         => 0,
-				'limit_response_size' => self::MAX_DOCUMENT_BYTES,
-				'headers'             => [ 'Accept' => 'application/json' ],
-			]
-		);
+		$host = (string) wp_parse_url( $url, PHP_URL_HOST );
+		$pin  = null;
+
+		// DNS-rebinding guard. The cURL extension is required for the preflight
+		// and the CURLOPT_RESOLVE pin; if it is unavailable the only reachable
+		// caller here is the trusted-host allowlist path, so we fall back to an
+		// unpinned fetch (the allowlist still constrains the host). There is no
+		// raw-DNS fallback, which would reintroduce an unbounded-timeout lookup.
+		if ( extension_loaded( 'curl' ) ) {
+			$ip = $this->connect_and_get_ip( $host );
+			if ( null === $ip ) {
+				// connect_and_get_ip() already logged the reason.
+				return null;
+			}
+
+			if ( ! $this->is_ip_allowed( $ip ) ) {
+				McpLogger::log(
+					'CIMD',
+					'rejected: client_id host resolves to a disallowed IP',
+					[
+						'client_id' => $url,
+						'ip'        => $ip,
+					]
+				);
+				return null;
+			}
+
+			// Pin the real fetch to the exact IP the preflight validated, so no
+			// re-resolution can happen between validation and fetch (no TOCTOU /
+			// rebinding gap): validated IP == connected IP == fetched IP.
+			$pin = function ( $handle ) use ( $host, $ip ) {
+				curl_setopt( $handle, CURLOPT_RESOLVE, [ $this->build_resolve_pin( $host, $ip ) ] ); // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt -- pinning the resolved IP on the underlying cURL handle is the whole point; wp_remote_get() exposes no equivalent.
+			};
+			add_action( 'http_api_curl', $pin );
+		}
+
+		try {
+			$response = wp_safe_remote_get(
+				$url,
+				[
+					'timeout'             => self::FETCH_TIMEOUT,
+					'redirection'         => 0,
+					'limit_response_size' => self::MAX_DOCUMENT_BYTES,
+					'headers'             => [ 'Accept' => 'application/json' ],
+				]
+			);
+		} finally {
+			if ( null !== $pin ) {
+				remove_action( 'http_api_curl', $pin );
+			}
+		}
 
 		if ( is_wp_error( $response ) ) {
 			McpLogger::log(
@@ -195,16 +267,21 @@ class CimdResolver {
 			return null;
 		}
 
+		// Content-type policy: a present-but-non-JSON type is rejected; an
+		// absent/empty header is tolerated (some CDNs and static object stores
+		// omit Content-Type on JSON objects, and the body is independently
+		// validated by the json_decode + client_id-match checks below).
 		$content_type = (string) wp_remote_retrieve_header( $response, 'content-type' );
 		if ( '' !== $content_type && false === strpos( $content_type, 'application/json' ) ) {
 			McpLogger::log(
 				'CIMD',
-				'warning: unexpected content-type',
+				'rejected: unexpected content-type',
 				[
 					'client_id'    => $url,
 					'content_type' => $content_type,
 				]
 			);
+			return null;
 		}
 
 		$doc = json_decode( $body, true );
@@ -217,6 +294,185 @@ class CimdResolver {
 			'doc' => $doc,
 			'ttl' => $this->parse_ttl( (string) wp_remote_retrieve_header( $response, 'cache-control' ) ),
 		];
+	}
+
+	/**
+	 * Time-bounded cURL connect-only preflight: resolve DNS and open a TCP/TLS
+	 * connection under a firm timeout, then report the IP actually connected to.
+	 *
+	 * Uses CURLOPT_CONNECT_ONLY so no HTTP request is sent and no body is read;
+	 * the handle is discarded (never reused for the real fetch). Unlike PHP's
+	 * gethostbynamel()/dns_get_record() — which take no timeout parameter and
+	 * block on the OS resolver — cURL bounds both the connect and (on an
+	 * async-DNS-capable libcurl) the name-resolution phase at CONNECT_TIMEOUT.
+	 *
+	 * @param string $host The client_id URL host (always connected on port 443).
+	 * @return string|null The connected IP (CURLINFO_PRIMARY_IP), or null on failure/timeout.
+	 */
+	protected function connect_and_get_ip( string $host ): ?string {
+		// The WP HTTP API cannot perform a connect-only probe or report the
+		// connected IP (CURLINFO_PRIMARY_IP), so this SSRF preflight uses the
+		// cURL functions directly and intentionally.
+		// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_init, WordPress.WP.AlternativeFunctions.curl_curl_setopt_array, WordPress.WP.AlternativeFunctions.curl_curl_exec, WordPress.WP.AlternativeFunctions.curl_curl_errno, WordPress.WP.AlternativeFunctions.curl_curl_close, WordPress.WP.AlternativeFunctions.curl_curl_getinfo
+		$ch = curl_init();
+		curl_setopt_array(
+			$ch,
+			[
+				CURLOPT_URL            => "https://{$host}/",
+				CURLOPT_PORT           => 443,
+				CURLOPT_CONNECT_ONLY   => true,
+				CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT,
+				CURLOPT_TIMEOUT        => self::CONNECT_TIMEOUT,
+			]
+		);
+
+		$result = curl_exec( $ch );
+
+		if ( false === $result || 0 !== curl_errno( $ch ) ) {
+			curl_close( $ch );
+			McpLogger::log( 'CIMD', 'rejected: preflight connect failed or timed out', [ 'host' => $host ] );
+			return null;
+		}
+
+		$ip = (string) curl_getinfo( $ch, CURLINFO_PRIMARY_IP );
+		curl_close( $ch );
+		// phpcs:enable WordPress.WP.AlternativeFunctions.curl_curl_init, WordPress.WP.AlternativeFunctions.curl_curl_setopt_array, WordPress.WP.AlternativeFunctions.curl_curl_exec, WordPress.WP.AlternativeFunctions.curl_curl_errno, WordPress.WP.AlternativeFunctions.curl_curl_close, WordPress.WP.AlternativeFunctions.curl_curl_getinfo
+
+		if ( '' === $ip ) {
+			McpLogger::log( 'CIMD', 'rejected: preflight connect failed or timed out', [ 'host' => $host ] );
+			return null;
+		}
+
+		return $ip;
+	}
+
+	/**
+	 * Build the CURLOPT_RESOLVE pin entry for a host/IP pair.
+	 *
+	 * The port is always 443 because is_valid_client_id_url() rejects any
+	 * explicit port, so the pin's host:port always matches the real request and
+	 * cannot be bypassed. libcurl parses the entry as "host:port:addr", where
+	 * addr is everything after the second colon, so an unbracketed IPv6 literal
+	 * is unambiguous and needs no brackets.
+	 *
+	 * @param string $host The request host.
+	 * @param string $ip   The IP to pin the host to.
+	 * @return string The "host:443:ip" pin entry.
+	 */
+	protected function build_resolve_pin( string $host, string $ip ): string {
+		return "{$host}:443:{$ip}";
+	}
+
+	/**
+	 * Whether an IP is allowed as a CIMD fetch target (pure range validation).
+	 *
+	 * Rejects private, loopback, link-local and ULA ranges plus the CGNAT
+	 * (100.64.0.0/10), "this-network" (0.0.0.0/8) and IETF-protocol
+	 * (192.0.0.0/24) ranges, and normalises IPv4-mapped IPv6 (::ffff:x.x.x.x)
+	 * to its embedded IPv4 before checking — cases the filter_var() flags alone
+	 * do not reliably catch across PHP versions.
+	 *
+	 * @param string $ip The IP address to validate.
+	 * @return bool True if the IP is a routable public address, false otherwise.
+	 */
+	protected function is_ip_allowed( string $ip ): bool {
+		$packed = @inet_pton( $ip ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- inet_pton() emits a warning on malformed input; we intentionally treat that as "reject".
+
+		if ( false === $packed ) {
+			return false;
+		}
+
+		if ( 16 === strlen( $packed ) ) {
+			// IPv4-mapped IPv6 (::ffff:x.x.x.x): normalise to the embedded IPv4
+			// and re-run the IPv4 range checks. stripos() (not str_contains(),
+			// which is PHP 8.0+) keeps this compatible with the PHP 7.4 floor.
+			$mapped_prefix = "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff";
+			if ( false !== stripos( $ip, '::ffff:' ) || 0 === strncmp( $packed, $mapped_prefix, 12 ) ) {
+				$embedded = inet_ntop( substr( $packed, 12 ) );
+				if ( is_string( $embedded ) && false !== filter_var( $embedded, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) ) {
+					return $this->is_ipv4_allowed( $embedded );
+				}
+			}
+
+			return $this->is_ipv6_allowed( $ip, $packed );
+		}
+
+		return $this->is_ipv4_allowed( $ip );
+	}
+
+	/**
+	 * Whether an IPv4 dotted-quad is a routable public address.
+	 *
+	 * @param string $ip The IPv4 address.
+	 * @return bool
+	 */
+	private function is_ipv4_allowed( string $ip ): bool {
+		if ( false === filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE ) ) {
+			return false;
+		}
+
+		$ip_long = ip2long( $ip );
+		if ( false === $ip_long ) {
+			return false;
+		}
+		$ip_long &= 0xFFFFFFFF;
+
+		$blocked = [
+			[ '10.0.0.0', 8 ],     // Private.
+			[ '172.16.0.0', 12 ],  // Private.
+			[ '192.168.0.0', 16 ], // Private.
+			[ '127.0.0.0', 8 ],    // Loopback.
+			[ '169.254.0.0', 16 ], // Link-local.
+			[ '100.64.0.0', 10 ],  // CGNAT (RFC 6598).
+			[ '0.0.0.0', 8 ],      // This-network range per RFC 1122.
+			[ '192.0.0.0', 24 ],   // IETF protocol assignments per RFC 6890.
+		];
+
+		foreach ( $blocked as $range ) {
+			$mask     = ( 0xFFFFFFFF << ( 32 - $range[1] ) ) & 0xFFFFFFFF;
+			$net_long = ip2long( $range[0] ) & 0xFFFFFFFF;
+			if ( ( $ip_long & $mask ) === ( $net_long & $mask ) ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Whether an IPv6 address is a routable public address.
+	 *
+	 * @param string $ip     The IPv6 address string.
+	 * @param string $packed The 16-byte inet_pton() form of $ip.
+	 * @return bool
+	 */
+	private function is_ipv6_allowed( string $ip, string $packed ): bool {
+		if ( false === filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE ) ) {
+			return false;
+		}
+
+		// Reject the unspecified address and the loopback address.
+		if ( "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" === $packed ) {
+			return false;
+		}
+		if ( "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01" === $packed ) {
+			return false;
+		}
+
+		$first_byte  = ord( $packed[0] );
+		$second_byte = ord( $packed[1] );
+
+		// fe80::/10 link-local.
+		if ( 0xfe === $first_byte && 0x80 === ( $second_byte & 0xc0 ) ) {
+			return false;
+		}
+
+		// fc00::/7 unique local address (ULA).
+		if ( 0xfc === ( $first_byte & 0xfe ) ) {
+			return false;
+		}
+
+		return true;
 	}
 
 	/**

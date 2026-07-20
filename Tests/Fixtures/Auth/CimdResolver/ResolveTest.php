@@ -24,7 +24,7 @@ $wpmedia_mcp_oauth_test_happy_record = [
 ];
 
 return [
-	'testShouldReturnNullForEmptyClientId'             => [
+	'testShouldReturnNullForEmptyClientId'              => [
 		'config'   => [
 			'client_id' => '',
 		],
@@ -32,12 +32,13 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => false,
 			'cache_checked'           => false,
+			'preflight'               => false,
 			'fetch'                   => false,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNullForNonHttpsUrl'               => [
+	'testShouldReturnNullForNonHttpsUrl'                => [
 		'config'   => [
 			'client_id' => 'http://example.com/cimd.json',
 		],
@@ -45,12 +46,13 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => false,
 			'cache_checked'           => false,
+			'preflight'               => false,
 			'fetch'                   => false,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNullForUrlMissingPath'            => [
+	'testShouldReturnNullForUrlMissingPath'             => [
 		'config'   => [
 			'client_id' => 'https://example.com',
 		],
@@ -58,12 +60,13 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => false,
 			'cache_checked'           => false,
+			'preflight'               => false,
 			'fetch'                   => false,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNullForUrlWithRootPathOnly'       => [
+	'testShouldReturnNullForUrlWithRootPathOnly'        => [
 		'config'   => [
 			'client_id' => 'https://example.com/',
 		],
@@ -71,12 +74,13 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => false,
 			'cache_checked'           => false,
+			'preflight'               => false,
 			'fetch'                   => false,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNullForUrlWithFragment'           => [
+	'testShouldReturnNullForUrlWithFragment'            => [
 		'config'   => [
 			'client_id' => 'https://example.com/cimd.json#section',
 		],
@@ -84,12 +88,13 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => false,
 			'cache_checked'           => false,
+			'preflight'               => false,
 			'fetch'                   => false,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNullForUrlWithUserinfo'           => [
+	'testShouldReturnNullForUrlWithUserinfo'            => [
 		'config'   => [
 			'client_id' => 'https://user:pass@example.com/cimd.json',
 		],
@@ -97,12 +102,41 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => false,
 			'cache_checked'           => false,
+			'preflight'               => false,
 			'fetch'                   => false,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNullWhenHostNotTrusted'           => [
+	'testShouldReturnNullForUrlWithExplicitPort'        => [
+		'config'   => [
+			'client_id' => 'https://example.com:8080/cimd.json',
+		],
+		'expected' => [
+			'result'                  => null,
+			'is_trusted_host_checked' => false,
+			'cache_checked'           => false,
+			'preflight'               => false,
+			'fetch'                   => false,
+			'verify_called'           => false,
+			'cache_set'               => false,
+		],
+	],
+	'testShouldReturnNullForUrlWithExplicitDefaultPort' => [
+		'config'   => [
+			'client_id' => 'https://example.com:443/cimd.json',
+		],
+		'expected' => [
+			'result'                  => null,
+			'is_trusted_host_checked' => false,
+			'cache_checked'           => false,
+			'preflight'               => false,
+			'fetch'                   => false,
+			'verify_called'           => false,
+			'cache_set'               => false,
+		],
+	],
+	'testShouldReturnNullWhenHostNotTrusted'            => [
 		'config'   => [
 			'client_id'       => $wpmedia_mcp_oauth_test_url,
 			'is_trusted_host' => false,
@@ -111,12 +145,32 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => true,
 			'cache_checked'           => false,
+			'preflight'               => false,
 			'fetch'                   => false,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnCachedRecordWithoutFetching'      => [
+	'testShouldReturnNullWhenHostNotTrustedEvenWithCachedRecord' => [
+		// Host-gate-before-cache regression (round-2 MUST_HAVE): an untrusted
+		// host must resolve to null even when a record is already cached, so
+		// get_transient() must NEVER be consulted (cache_checked === false).
+		'config'   => [
+			'client_id'       => $wpmedia_mcp_oauth_test_url,
+			'is_trusted_host' => false,
+			'cached'          => $wpmedia_mcp_oauth_test_happy_record,
+		],
+		'expected' => [
+			'result'                  => null,
+			'is_trusted_host_checked' => true,
+			'cache_checked'           => false,
+			'preflight'               => false,
+			'fetch'                   => false,
+			'verify_called'           => false,
+			'cache_set'               => false,
+		],
+	],
+	'testShouldReturnCachedRecordWithoutFetching'       => [
 		'config'   => [
 			'client_id'       => $wpmedia_mcp_oauth_test_url,
 			'is_trusted_host' => true,
@@ -126,12 +180,51 @@ return [
 			'result'                  => $wpmedia_mcp_oauth_test_happy_record,
 			'is_trusted_host_checked' => true,
 			'cache_checked'           => true,
+			'preflight'               => false,
 			'fetch'                   => false,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNullWhenFetchReturnsWpError'      => [
+	'testShouldReturnNullWhenPreflightConnectFails'     => [
+		// connect_and_get_ip() returns null (connect failure/timeout): reject
+		// before the real fetch, so wp_safe_remote_get() is never called.
+		'config'   => [
+			'client_id'       => $wpmedia_mcp_oauth_test_url,
+			'is_trusted_host' => true,
+			'cached'          => null,
+			'connect_ip'      => null,
+		],
+		'expected' => [
+			'result'                  => null,
+			'is_trusted_host_checked' => true,
+			'cache_checked'           => true,
+			'preflight'               => true,
+			'fetch'                   => false,
+			'verify_called'           => false,
+			'cache_set'               => false,
+		],
+	],
+	'testShouldReturnNullWhenPreflightIpDisallowed'     => [
+		// connect_and_get_ip() connects to a private IP: is_ip_allowed() rejects
+		// it before the real fetch.
+		'config'   => [
+			'client_id'       => $wpmedia_mcp_oauth_test_url,
+			'is_trusted_host' => true,
+			'cached'          => null,
+			'connect_ip'      => '10.0.0.5',
+		],
+		'expected' => [
+			'result'                  => null,
+			'is_trusted_host_checked' => true,
+			'cache_checked'           => true,
+			'preflight'               => true,
+			'fetch'                   => false,
+			'verify_called'           => false,
+			'cache_set'               => false,
+		],
+	],
+	'testShouldReturnNullWhenFetchReturnsWpError'       => [
 		'config'   => [
 			'client_id'       => $wpmedia_mcp_oauth_test_url,
 			'is_trusted_host' => true,
@@ -143,12 +236,13 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => true,
 			'cache_checked'           => true,
+			'preflight'               => true,
 			'fetch'                   => true,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNullForNon200Status'              => [
+	'testShouldReturnNullForNon200Status'               => [
 		'config'   => [
 			'client_id'       => $wpmedia_mcp_oauth_test_url,
 			'is_trusted_host' => true,
@@ -160,12 +254,13 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => true,
 			'cache_checked'           => true,
+			'preflight'               => true,
 			'fetch'                   => true,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNullWhenBodyExceedsMaxBytes'      => [
+	'testShouldReturnNullWhenBodyExceedsMaxBytes'       => [
 		'config'   => [
 			'client_id'       => $wpmedia_mcp_oauth_test_url,
 			'is_trusted_host' => true,
@@ -177,12 +272,13 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => true,
 			'cache_checked'           => true,
+			'preflight'               => true,
 			'fetch'                   => true,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNullForNonJsonBody'               => [
+	'testShouldReturnNullForNonJsonBody'                => [
 		'config'   => [
 			'client_id'       => $wpmedia_mcp_oauth_test_url,
 			'is_trusted_host' => true,
@@ -194,12 +290,13 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => true,
 			'cache_checked'           => true,
+			'preflight'               => true,
 			'fetch'                   => true,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNullForEmptyJsonBody'             => [
+	'testShouldReturnNullForEmptyJsonBody'              => [
 		'config'   => [
 			'client_id'       => $wpmedia_mcp_oauth_test_url,
 			'is_trusted_host' => true,
@@ -211,12 +308,13 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => true,
 			'cache_checked'           => true,
+			'preflight'               => true,
 			'fetch'                   => true,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNullWhenDocumentClientIdMismatch' => [
+	'testShouldReturnNullWhenDocumentClientIdMismatch'  => [
 		'config'   => [
 			'client_id'       => $wpmedia_mcp_oauth_test_url,
 			'is_trusted_host' => true,
@@ -233,12 +331,13 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => true,
 			'cache_checked'           => true,
+			'preflight'               => true,
 			'fetch'                   => true,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNullWhenAuthMethodNotNone'        => [
+	'testShouldReturnNullWhenAuthMethodNotNone'         => [
 		'config'   => [
 			'client_id'       => $wpmedia_mcp_oauth_test_url,
 			'is_trusted_host' => true,
@@ -256,12 +355,13 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => true,
 			'cache_checked'           => true,
+			'preflight'               => true,
 			'fetch'                   => true,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNullWhenRedirectUrisMissing'      => [
+	'testShouldReturnNullWhenRedirectUrisMissing'       => [
 		'config'   => [
 			'client_id'       => $wpmedia_mcp_oauth_test_url,
 			'is_trusted_host' => true,
@@ -277,12 +377,13 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => true,
 			'cache_checked'           => true,
+			'preflight'               => true,
 			'fetch'                   => true,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNullWhenRedirectUrisEmpty'        => [
+	'testShouldReturnNullWhenRedirectUrisEmpty'         => [
 		'config'   => [
 			'client_id'       => $wpmedia_mcp_oauth_test_url,
 			'is_trusted_host' => true,
@@ -299,6 +400,7 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => true,
 			'cache_checked'           => true,
+			'preflight'               => true,
 			'fetch'                   => true,
 			'verify_called'           => false,
 			'cache_set'               => false,
@@ -322,12 +424,13 @@ return [
 			'result'                  => null,
 			'is_trusted_host_checked' => true,
 			'cache_checked'           => true,
+			'preflight'               => true,
 			'fetch'                   => true,
 			'verify_called'           => false,
 			'cache_set'               => false,
 		],
 	],
-	'testShouldReturnNormalizedRecordOnHappyPath'      => [
+	'testShouldReturnNormalizedRecordOnHappyPath'       => [
 		'config'   => [
 			'client_id'       => $wpmedia_mcp_oauth_test_url,
 			'is_trusted_host' => true,
@@ -345,13 +448,15 @@ return [
 			'result'                  => $wpmedia_mcp_oauth_test_happy_record,
 			'is_trusted_host_checked' => true,
 			'cache_checked'           => true,
+			'preflight'               => true,
 			'fetch'                   => true,
 			'verify_called'           => true,
 			'cache_set'               => true,
 			'ttl'                     => 7200,
 		],
 	],
-	'testShouldResolveAndWarnOnUnexpectedContentType'  => [
+	'testShouldReturnNullOnUnexpectedContentType'       => [
+		// Present-but-non-JSON content-type is now rejected (was a warning).
 		'config'   => [
 			'client_id'       => $wpmedia_mcp_oauth_test_url,
 			'is_trusted_host' => true,
@@ -359,6 +464,27 @@ return [
 			'status'          => 200,
 			'body'            => json_encode( $wpmedia_mcp_oauth_test_happy_doc ), // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- fixture data loads before WP is bootstrapped; wp_json_encode() is unavailable at this point.
 			'content_type'    => 'text/html',
+			'cache_control'   => 'max-age=7200',
+		],
+		'expected' => [
+			'result'                  => null,
+			'is_trusted_host_checked' => true,
+			'cache_checked'           => true,
+			'preflight'               => true,
+			'fetch'                   => true,
+			'verify_called'           => false,
+			'cache_set'               => false,
+		],
+	],
+	'testShouldResolveWhenContentTypeAbsent'            => [
+		// Absent/empty content-type is tolerated; body is still validated.
+		'config'   => [
+			'client_id'       => $wpmedia_mcp_oauth_test_url,
+			'is_trusted_host' => true,
+			'cached'          => null,
+			'status'          => 200,
+			'body'            => json_encode( $wpmedia_mcp_oauth_test_happy_doc ), // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- fixture data loads before WP is bootstrapped; wp_json_encode() is unavailable at this point.
+			'content_type'    => '',
 			'cache_control'   => 'max-age=7200',
 			'verify_result'   => [
 				'verified'  => true,
@@ -369,6 +495,7 @@ return [
 			'result'                  => $wpmedia_mcp_oauth_test_happy_record,
 			'is_trusted_host_checked' => true,
 			'cache_checked'           => true,
+			'preflight'               => true,
 			'fetch'                   => true,
 			'verify_called'           => true,
 			'cache_set'               => true,
