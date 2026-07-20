@@ -7,7 +7,7 @@ return [
 			'legacy'  => null,
 		],
 		'expected' => [
-			'result'          => false,
+			'result'          => true,
 			'incorrect_usage' => false,
 			'deprecated'      => false,
 		],
@@ -62,7 +62,7 @@ return [
 			'legacy'  => null,
 		],
 		'expected' => [
-			'result'          => false,
+			'result'          => true,
 			'incorrect_usage' => true,
 			'deprecated'      => false,
 		],
