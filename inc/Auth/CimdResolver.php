@@ -312,8 +312,12 @@ class CimdResolver {
 	protected function connect_and_get_ip( string $host ): ?string {
 		// The WP HTTP API cannot perform a connect-only probe or report the
 		// connected IP (CURLINFO_PRIMARY_IP), so this SSRF preflight uses the
-		// cURL functions directly and intentionally.
-		// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_init, WordPress.WP.AlternativeFunctions.curl_curl_setopt_array, WordPress.WP.AlternativeFunctions.curl_curl_exec, WordPress.WP.AlternativeFunctions.curl_curl_errno, WordPress.WP.AlternativeFunctions.curl_curl_close, WordPress.WP.AlternativeFunctions.curl_curl_getinfo
+		// cURL functions directly and intentionally. The curl_close() calls
+		// below are guarded by PHP_VERSION_ID < 80500 so they never run on PHP
+		// 8.5+, where curl_close() is deprecated; the DeprecatedFunctions sniff
+		// is a static token scan that cannot see that guard, so it is disabled
+		// for this block too.
+		// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_init, WordPress.WP.AlternativeFunctions.curl_curl_setopt_array, WordPress.WP.AlternativeFunctions.curl_curl_exec, WordPress.WP.AlternativeFunctions.curl_curl_errno, WordPress.WP.AlternativeFunctions.curl_curl_close, WordPress.WP.AlternativeFunctions.curl_curl_getinfo, Generic.PHP.DeprecatedFunctions.Deprecated
 		$ch = curl_init();
 		curl_setopt_array(
 			$ch,
@@ -329,14 +333,22 @@ class CimdResolver {
 		$result = curl_exec( $ch );
 
 		if ( false === $result || 0 !== curl_errno( $ch ) ) {
-			curl_close( $ch );
+			// curl_close() was deprecated in PHP 8.5 (a no-op since 8.0, where a
+			// CurlHandle object is freed automatically when it goes out of scope);
+			// still call it below 8.5 so the handle is freed promptly on PHP 7.4,
+			// where it is a resource.
+			if ( PHP_VERSION_ID < 80500 ) {
+				curl_close( $ch );
+			}
 			McpLogger::log( 'CIMD', 'rejected: preflight connect failed or timed out', [ 'host' => $host ] );
 			return null;
 		}
 
 		$ip = (string) curl_getinfo( $ch, CURLINFO_PRIMARY_IP );
-		curl_close( $ch );
-		// phpcs:enable WordPress.WP.AlternativeFunctions.curl_curl_init, WordPress.WP.AlternativeFunctions.curl_curl_setopt_array, WordPress.WP.AlternativeFunctions.curl_curl_exec, WordPress.WP.AlternativeFunctions.curl_curl_errno, WordPress.WP.AlternativeFunctions.curl_curl_close, WordPress.WP.AlternativeFunctions.curl_curl_getinfo
+		if ( PHP_VERSION_ID < 80500 ) {
+			curl_close( $ch );
+		}
+		// phpcs:enable WordPress.WP.AlternativeFunctions.curl_curl_init, WordPress.WP.AlternativeFunctions.curl_curl_setopt_array, WordPress.WP.AlternativeFunctions.curl_curl_exec, WordPress.WP.AlternativeFunctions.curl_curl_errno, WordPress.WP.AlternativeFunctions.curl_curl_close, WordPress.WP.AlternativeFunctions.curl_curl_getinfo, Generic.PHP.DeprecatedFunctions.Deprecated
 
 		if ( '' === $ip ) {
 			McpLogger::log( 'CIMD', 'rejected: preflight connect failed or timed out', [ 'host' => $host ] );
