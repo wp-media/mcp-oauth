@@ -32,10 +32,10 @@ site calls it, only the first call wires the library (rewrite rules, OAuth
 endpoint routing, discovery documents, and MCP server registration); every
 later call returns the same instance and binds nothing further.
 
-The OAuth server is disabled by default. Enable it with:
+The OAuth server is enabled by default. Disable it with:
 
 ```php
-add_filter( 'wpmedia_mcp_oauth_server_enabled', '__return_true' );
+add_filter( 'wpmedia_mcp_oauth_server_enabled', '__return_false' );
 ```
 
 When disabled, all `/oauth/*` endpoints and `/.well-known/oauth-*` discovery
