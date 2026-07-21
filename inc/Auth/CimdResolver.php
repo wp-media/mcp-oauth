@@ -380,9 +380,12 @@ class CimdResolver {
 	 *
 	 * Rejects private, loopback, link-local and ULA ranges plus the CGNAT
 	 * (100.64.0.0/10), "this-network" (0.0.0.0/8) and IETF-protocol
-	 * (192.0.0.0/24) ranges, and normalises IPv4-mapped IPv6 (::ffff:x.x.x.x)
-	 * to its embedded IPv4 before checking — cases the filter_var() flags alone
-	 * do not reliably catch across PHP versions.
+	 * (192.0.0.0/24) ranges. Any IPv6 form that embeds an IPv4 address is
+	 * normalised to that IPv4 and re-checked against the IPv4 ranges, so a
+	 * private/reserved IPv4 cannot slip through wrapped in an IPv6 literal:
+	 * IPv4-mapped (::ffff:x.x.x.x), IPv4-compatible (::/96), NAT64
+	 * (64:ff9b::/96) and 6to4 (2002::/16). These are cases the filter_var()
+	 * flags alone do not reliably catch across PHP versions.
 	 *
 	 * @param string $ip The IP address to validate.
 	 * @return bool True if the IP is a routable public address, false otherwise.
@@ -404,6 +407,24 @@ class CimdResolver {
 				if ( is_string( $embedded ) && false !== filter_var( $embedded, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) ) {
 					return $this->is_ipv4_allowed( $embedded );
 				}
+			}
+
+			// Other IPv6 encodings that embed an IPv4 address: NAT64
+			// (64:ff9b::/96) and the deprecated IPv4-compatible form (::/96)
+			// both carry the IPv4 in the last 4 bytes; 6to4 (2002::/16) carries
+			// it in bytes 2-5. Decode it and re-run the IPv4 range checks so a
+			// private/reserved IPv4 cannot slip through wrapped in one of these
+			// prefixes (e.g. on a DNS64/NAT64 or 6to4 network).
+			$nat64_prefix  = "\x00\x64\xff\x9b\x00\x00\x00\x00\x00\x00\x00\x00";
+			$compat_prefix = "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+			$embedded      = null;
+			if ( 0 === strncmp( $packed, $nat64_prefix, 12 ) || 0 === strncmp( $packed, $compat_prefix, 12 ) ) {
+				$embedded = inet_ntop( substr( $packed, 12, 4 ) );
+			} elseif ( "\x20\x02" === substr( $packed, 0, 2 ) ) {
+				$embedded = inet_ntop( substr( $packed, 2, 4 ) );
+			}
+			if ( is_string( $embedded ) && false !== filter_var( $embedded, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) ) {
+				return $this->is_ipv4_allowed( $embedded );
 			}
 
 			return $this->is_ipv6_allowed( $ip, $packed );
