@@ -19,12 +19,12 @@ class Rewrite {
 	/**
 	 * WordPress query var used to route OAuth endpoint requests.
 	 */
-	const OAUTH_QUERY_VAR = 'mcp_oauth_endpoint'; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound
+	const OAUTH_QUERY_VAR = 'mcp_oauth_endpoint';
 
 	/**
 	 * Canary rule key used to detect whether the OAuth rules are persisted.
 	 */
-	const AUTHORIZE_RULE = '^oauth/authorize$'; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound
+	const AUTHORIZE_RULE = '^oauth/authorize$';
 
 	/**
 	 * Register WordPress rewrite rules for all five OAuth endpoints.
