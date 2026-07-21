@@ -194,12 +194,38 @@ final class Bootstrap {
 			return;
 		}
 
-		if ( get_option( self::REWRITE_OPTION ) === self::REWRITE_VERSION ) {
+		if ( ! $this->needs_rewrite_flush() ) {
 			return;
 		}
 
 		flush_rewrite_rules( false );
 		update_option( self::REWRITE_OPTION, self::REWRITE_VERSION, false );
+	}
+
+	/**
+	 * Whether the OAuth rewrite rules need to be (re-)persisted.
+	 *
+	 * Self-heals cases the version flag alone cannot detect: a fresh site, a
+	 * filter/snippet that enables the server only after init@20 on the previous
+	 * load, or our rules dropped from the persisted set. When pretty permalinks
+	 * are off, the rules can never be persisted, so a flag match alone is used
+	 * to avoid flushing on every request.
+	 *
+	 * @return bool
+	 */
+	private function needs_rewrite_flush(): bool {
+		if ( get_option( self::REWRITE_OPTION ) !== self::REWRITE_VERSION ) {
+			return true;
+		}
+
+		// Plain permalinks: no pretty rules to check; a flag match is enough.
+		if ( '' === (string) get_option( 'permalink_structure' ) ) {
+			return false;
+		}
+
+		$rules = get_option( 'rewrite_rules' );
+
+		return ! is_array( $rules ) || ! array_key_exists( Rewrite::AUTHORIZE_RULE, $rules );
 	}
 
 	/**

@@ -22,6 +22,11 @@ class Rewrite {
 	const OAUTH_QUERY_VAR = 'mcp_oauth_endpoint'; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound
 
 	/**
+	 * Canary rule key used to detect whether the OAuth rules are persisted.
+	 */
+	const AUTHORIZE_RULE = '^oauth/authorize$'; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound
+
+	/**
 	 * Register WordPress rewrite rules for all five OAuth endpoints.
 	 *
 	 * Called on the 'init' action (normal page load).
@@ -29,7 +34,7 @@ class Rewrite {
 	 * @return void
 	 */
 	public function register_oauth_rewrite_rules(): void {
-		add_rewrite_rule( '^oauth/authorize$', 'index.php?' . self::OAUTH_QUERY_VAR . '=authorize', 'top' );
+		add_rewrite_rule( self::AUTHORIZE_RULE, 'index.php?' . self::OAUTH_QUERY_VAR . '=authorize', 'top' );
 		add_rewrite_rule( '^oauth/authorize-callback$', 'index.php?' . self::OAUTH_QUERY_VAR . '=authorize-callback', 'top' );
 		add_rewrite_rule( '^oauth/token$', 'index.php?' . self::OAUTH_QUERY_VAR . '=token', 'top' );
 		add_rewrite_rule( '^oauth/consent$', 'index.php?' . self::OAUTH_QUERY_VAR . '=consent', 'top' );
