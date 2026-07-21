@@ -183,6 +183,106 @@ class ResolveTest extends TestCase {
 	}
 
 	/**
+	 * Pins the real fetch to the exact IP the preflight connected to: the
+	 * closure registered on http_api_curl must, when fired, build the pin from
+	 * the connected host/IP and feed it to curl_setopt( CURLOPT_RESOLVE, ... ),
+	 * and must be removed afterwards so it never leaks to a later request.
+	 *
+	 * Because curl_setopt() cannot be stubbed under Brain\Monkey (Patchwork
+	 * refuses to redefine it without a redefinable-internals entry), the
+	 * captured closure is invoked against a real cURL handle — which exercises
+	 * the real curl_setopt() call end to end — while build_resolve_pin() is
+	 * spied to assert the pin is built from the connected IP (its exact string
+	 * form is covered by BuildResolvePinTest).
+	 *
+	 * @return void
+	 */
+	public function testShouldPinTheConnectedIpOnTheRealFetch(): void {
+		$client_id = 'https://example.com/cimd.json';
+		$host      = 'example.com';
+		$ip        = '93.184.216.34';
+		$pin       = 'example.com:443:93.184.216.34';
+
+		$doc = [
+			'client_id'                  => $client_id,
+			'client_name'                => 'Example Client',
+			'redirect_uris'              => [ 'https://client.example/callback' ],
+			'grant_types'                => [ 'authorization_code', 'refresh_token' ],
+			'token_endpoint_auth_method' => 'none',
+		];
+
+		$this->stubEscapeFunctions();
+		Functions\when( 'wp_parse_url' )->alias( 'parse_url' );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'is_wp_error' )->justReturn( false );
+		Functions\when( 'wp_remote_retrieve_response_code' )->justReturn( 200 );
+		Functions\when( 'wp_remote_retrieve_body' )->justReturn( (string) wp_json_encode( $doc ) );
+		Functions\when( 'wp_remote_retrieve_header' )->alias(
+			static function ( $response, $header ) {
+				return 'content-type' === $header ? 'application/json' : '';
+			}
+		);
+		Functions\when( 'wp_json_encode' )->alias(
+			static function ( $data ) {
+				return json_encode( $data ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Brain\Monkey unit test with no WP runtime.
+			}
+		);
+		Functions\when( 'get_transient' )->justReturn( false );
+		Functions\when( 'set_transient' )->justReturn( true );
+		Functions\when( 'wp_safe_remote_get' )->justReturn( [ 'fetched' => true ] );
+
+		// Capture the pin closure registered on (and removed from) http_api_curl.
+		$captured = null;
+		$removed  = null;
+		Functions\when( 'add_action' )->alias(
+			static function ( $hook, $callback ) use ( &$captured ) {
+				if ( 'http_api_curl' === $hook ) {
+					$captured = $callback;
+				}
+				return true;
+			}
+		);
+		Functions\when( 'remove_action' )->alias(
+			static function ( $hook, $callback ) use ( &$removed ) {
+				if ( 'http_api_curl' === $hook ) {
+					$removed = $callback;
+				}
+				return true;
+			}
+		);
+
+		$verifier = Mockery::mock( ClaudeClientVerifier::class );
+		$verifier->shouldReceive( 'is_trusted_host' )->once()->with( $client_id )->andReturn( true );
+		$verifier->shouldReceive( 'verify' )->once()->andReturn(
+			[
+				'verified'  => true,
+				'publisher' => 'claude',
+			]
+		);
+
+		$resolver = Mockery::mock( CimdResolver::class . '[connect_and_get_ip,build_resolve_pin]', [ $verifier ] );
+		$resolver->shouldAllowMockingProtectedMethods();
+		$resolver->shouldReceive( 'connect_and_get_ip' )->once()->with( $host )->andReturn( $ip );
+		// The pin must be built from the connected IP, not a re-resolved one.
+		$resolver->shouldReceive( 'build_resolve_pin' )->once()->with( $host, $ip )->andReturn( $pin );
+
+		$this->assertIsArray( $resolver->resolve( $client_id ) );
+
+		// The closure was registered and then removed (the same one), so the pin
+		// cannot leak into a subsequent unrelated HTTP request.
+		$this->assertIsCallable( $captured );
+		$this->assertSame( $captured, $removed, 'The pin closure must be removed after the fetch.' );
+
+		// Firing the closure against a real handle drives the real curl_setopt()
+		// call; build_resolve_pin() (spied above) proves the connected IP is used.
+		$handle = curl_init(); // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_init -- exercising the real pin closure needs a real CurlHandle; curl_setopt() cannot be stubbed here.
+		$captured( $handle );
+		if ( PHP_VERSION_ID < 80500 ) {
+			curl_close( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_close, Generic.PHP.DeprecatedFunctions.Deprecated -- guarded: curl_close() is deprecated in PHP 8.5 and only called below it.
+		}
+	}
+
+	/**
 	 * Data provider: client_id URLs with an explicit port (both a non-standard
 	 * port and an explicit :443).
 	 *

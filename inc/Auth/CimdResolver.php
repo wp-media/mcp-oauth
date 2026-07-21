@@ -318,17 +318,28 @@ class CimdResolver {
 		// is a static token scan that cannot see that guard, so it is disabled
 		// for this block too.
 		// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_init, WordPress.WP.AlternativeFunctions.curl_curl_setopt_array, WordPress.WP.AlternativeFunctions.curl_curl_exec, WordPress.WP.AlternativeFunctions.curl_curl_errno, WordPress.WP.AlternativeFunctions.curl_curl_close, WordPress.WP.AlternativeFunctions.curl_curl_getinfo, Generic.PHP.DeprecatedFunctions.Deprecated
-		$ch = curl_init();
-		curl_setopt_array(
-			$ch,
-			[
-				CURLOPT_URL            => "https://{$host}/",
-				CURLOPT_PORT           => 443,
-				CURLOPT_CONNECT_ONLY   => true,
-				CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT,
-				CURLOPT_TIMEOUT        => self::CONNECT_TIMEOUT,
-			]
-		);
+		$ch      = curl_init();
+		$options = [
+			CURLOPT_URL            => "https://{$host}/",
+			CURLOPT_PORT           => 443,
+			CURLOPT_CONNECT_ONLY   => true,
+			CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT,
+			CURLOPT_TIMEOUT        => self::CONNECT_TIMEOUT,
+		];
+
+		// Verify TLS against the same CA bundle WordPress core's own HTTP API
+		// uses (ABSPATH . WPINC . '/certificates/ca-bundle.crt', the default
+		// 'sslcertificates' path WP_Http_Curl passes to CURLOPT_CAINFO), so the
+		// preflight's trust store matches the real wp_safe_remote_get() fetch and
+		// a legitimate host is not false-rejected on a system without a CA store.
+		if ( defined( 'ABSPATH' ) && defined( 'WPINC' ) ) {
+			$ca_bundle = ABSPATH . WPINC . '/certificates/ca-bundle.crt';
+			if ( is_readable( $ca_bundle ) ) {
+				$options[ CURLOPT_CAINFO ] = $ca_bundle;
+			}
+		}
+
+		curl_setopt_array( $ch, $options );
 
 		$result = curl_exec( $ch );
 
@@ -403,9 +414,9 @@ class CimdResolver {
 			// which is PHP 8.0+) keeps this compatible with the PHP 7.4 floor.
 			$mapped_prefix = "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff";
 			if ( false !== stripos( $ip, '::ffff:' ) || 0 === strncmp( $packed, $mapped_prefix, 12 ) ) {
-				$embedded = inet_ntop( substr( $packed, 12 ) );
-				if ( is_string( $embedded ) && false !== filter_var( $embedded, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) ) {
-					return $this->is_ipv4_allowed( $embedded );
+				$allowed = $this->extract_and_validate_embedded_ipv4( substr( $packed, 12, 4 ) );
+				if ( null !== $allowed ) {
+					return $allowed;
 				}
 			}
 
@@ -417,17 +428,42 @@ class CimdResolver {
 			// prefixes (e.g. on a DNS64/NAT64 or 6to4 network).
 			$nat64_prefix  = "\x00\x64\xff\x9b\x00\x00\x00\x00\x00\x00\x00\x00";
 			$compat_prefix = "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
-			$embedded      = null;
+			$allowed       = null;
 			if ( 0 === strncmp( $packed, $nat64_prefix, 12 ) || 0 === strncmp( $packed, $compat_prefix, 12 ) ) {
-				$embedded = inet_ntop( substr( $packed, 12, 4 ) );
+				$allowed = $this->extract_and_validate_embedded_ipv4( substr( $packed, 12, 4 ) );
 			} elseif ( "\x20\x02" === substr( $packed, 0, 2 ) ) {
-				$embedded = inet_ntop( substr( $packed, 2, 4 ) );
+				$allowed = $this->extract_and_validate_embedded_ipv4( substr( $packed, 2, 4 ) );
 			}
-			if ( is_string( $embedded ) && false !== filter_var( $embedded, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) ) {
-				return $this->is_ipv4_allowed( $embedded );
+			if ( null !== $allowed ) {
+				return $allowed;
 			}
 
 			return $this->is_ipv6_allowed( $ip, $packed );
+		}
+
+		return $this->is_ipv4_allowed( $ip );
+	}
+
+	/**
+	 * Decode a 4-byte embedded IPv4 slice and run the IPv4 range checks on it.
+	 *
+	 * Shared decode-and-validate tail for every IPv4-in-IPv6 encoding: the
+	 * caller isolates which bytes hold the IPv4 (that offset differs per
+	 * prefix); this validates them the same way regardless of the prefix.
+	 *
+	 * @param string $packed_v4_bytes The raw 4 bytes of the embedded IPv4.
+	 * @return bool|null True/false when the slice is a valid IPv4 that is
+	 *                   allowed/disallowed; null when it is not a decodable IPv4
+	 *                   (so the caller falls back to IPv6 handling).
+	 */
+	private function extract_and_validate_embedded_ipv4( string $packed_v4_bytes ): ?bool {
+		if ( 4 !== strlen( $packed_v4_bytes ) ) {
+			return null;
+		}
+
+		$ip = inet_ntop( $packed_v4_bytes );
+		if ( ! is_string( $ip ) || false === filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) ) {
+			return null;
 		}
 
 		return $this->is_ipv4_allowed( $ip );
