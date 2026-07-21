@@ -64,31 +64,13 @@ class MaybeFlushRewriteRulesTest extends TestCase {
 	}
 
 	/**
-	 * Enables the OAuth server through the primary filter.
+	 * Resolves a symbolic flag state ('match'/'missing') to a real option value.
 	 *
-	 * @param bool $enabled Whether the server is enabled.
-	 * @return void
+	 * @param string $state Symbolic flag state.
+	 * @return string|null Real version value, or null to mean "option absent".
 	 */
-	private function set_enabled( bool $enabled ): void {
-		add_filter(
-			'wpmedia_mcp_oauth_server_enabled',
-			static function () use ( $enabled ) {
-				return $enabled;
-			}
-		);
-	}
-
-	/**
-	 * Switches the site to pretty permalinks and registers the OAuth rules.
-	 *
-	 * @return void
-	 */
-	private function use_pretty_permalinks_with_oauth_rules(): void {
-		global $wp_rewrite;
-
-		update_option( 'permalink_structure', '/%postname%/' );
-		$wp_rewrite->init();
-		( new Rewrite() )->register_oauth_rewrite_rules();
+	private function resolve_flag( string $state ): ?string {
+		return 'match' === $state ? $this->version : null;
 	}
 
 	/**
@@ -108,73 +90,54 @@ class MaybeFlushRewriteRulesTest extends TestCase {
 	}
 
 	/**
-	 * Flushes when the version flag matches but our rule is missing from the persisted set.
+	 * Flushes the rewrite rules only when the version flag or the persisted OAuth rule requires it.
 	 *
-	 * @return void
+	 * @dataProvider configTestData
+	 *
+	 * @param array<string, mixed> $config   Test configuration.
+	 * @param array<string, mixed> $expected Expected outcome.
 	 */
-	public function testShouldFlushWhenOauthRuleMissingDespiteMatchingVersionFlag(): void {
-		$this->set_enabled( true );
-		$this->use_pretty_permalinks_with_oauth_rules();
+	public function testShouldFlushAccordingToState( array $config, array $expected ): void {
+		global $wp_rewrite;
 
-		update_option( $this->option, $this->version );
-		update_option( 'rewrite_rules', [ '^foo$' => 'index.php?foo=1' ] );
+		add_filter(
+			'wpmedia_mcp_oauth_server_enabled',
+			static function () use ( $config ) {
+				return $config['enabled'];
+			}
+		);
+
+		update_option( 'permalink_structure', $config['permalink_structure'] );
+
+		if ( '' !== $config['permalink_structure'] ) {
+			$wp_rewrite->init();
+		}
+
+		if ( $config['register_oauth_rules'] ) {
+			( new Rewrite() )->register_oauth_rewrite_rules();
+		}
+
+		update_option( 'rewrite_rules', $config['initial_rewrite_rules'] );
+
+		$initial_flag = $this->resolve_flag( $config['initial_flag'] );
+		if ( null === $initial_flag ) {
+			delete_option( $this->option );
+		} else {
+			update_option( $this->option, $initial_flag );
+		}
 
 		$this->make_bootstrap()->maybe_flush_rewrite_rules();
 
-		$this->assertSame( 1, $this->flush_count );
-		$this->assertArrayHasKey( Rewrite::AUTHORIZE_RULE, (array) get_option( 'rewrite_rules' ) );
-		$this->assertSame( $this->version, get_option( $this->option ) );
-	}
+		$this->assertSame( $expected['flush_count'], $this->flush_count );
 
-	/**
-	 * Does not flush when the version flag matches and our rule is already persisted.
-	 *
-	 * @return void
-	 */
-	public function testShouldNotFlushWhenVersionFlagAndOauthRulePresent(): void {
-		$this->set_enabled( true );
-		$this->use_pretty_permalinks_with_oauth_rules();
+		$expected_flag = $this->resolve_flag( $expected['flag_after'] );
+		$this->assertSame( $expected_flag ?? false, get_option( $this->option ) );
 
-		update_option( $this->option, $this->version );
-		update_option( 'rewrite_rules', [ Rewrite::AUTHORIZE_RULE => 'index.php?mcp_oauth_endpoint=authorize' ] );
-
-		$this->make_bootstrap()->maybe_flush_rewrite_rules();
-
-		$this->assertSame( 0, $this->flush_count );
-	}
-
-	/**
-	 * Does not flush on every request under plain permalinks once the flag is set.
-	 *
-	 * @return void
-	 */
-	public function testShouldNotFlushUnderPlainPermalinksWhenVersionFlagMatches(): void {
-		$this->set_enabled( true );
-
-		update_option( 'permalink_structure', '' );
-		update_option( $this->option, $this->version );
-		update_option( 'rewrite_rules', [] );
-
-		$this->make_bootstrap()->maybe_flush_rewrite_rules();
-
-		$this->assertSame( 0, $this->flush_count );
-	}
-
-	/**
-	 * Does not flush when the OAuth server is disabled.
-	 *
-	 * @return void
-	 */
-	public function testShouldNotFlushWhenServerDisabled(): void {
-		$this->set_enabled( false );
-		$this->use_pretty_permalinks_with_oauth_rules();
-
-		delete_option( $this->option );
-		update_option( 'rewrite_rules', [] );
-
-		$this->make_bootstrap()->maybe_flush_rewrite_rules();
-
-		$this->assertSame( 0, $this->flush_count );
-		$this->assertFalse( get_option( $this->option ) );
+		if ( null !== $expected['rule_after'] ) {
+			$this->assertSame(
+				$expected['rule_after'],
+				array_key_exists( Rewrite::AUTHORIZE_RULE, (array) get_option( 'rewrite_rules' ) )
+			);
+		}
 	}
 }
