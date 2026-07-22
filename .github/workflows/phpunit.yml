@@ -12,8 +12,16 @@ concurrency:
 
 jobs:
   run:
-    name: PHPUnit
+    name: PHPUnit (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
+    strategy:
+      # Report every PHP version independently instead of cancelling the whole
+      # matrix on the first failing leg.
+      fail-fast: false
+      matrix:
+        # Supported range: floor (composer "php": ">=7.4") through the latest
+        # stable release. Add a new entry when a new PHP version ships.
+        php: ['7.4', '8.0', '8.1', '8.2', '8.3', '8.4', '8.5']
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -21,7 +29,7 @@ jobs:
     - name: Setup PHP
       uses: shivammathur/setup-php@v2
       with:
-          php-version: '8.2'
+          php-version: ${{ matrix.php }}
           ini-values: 'memory_limit=1G'
           coverage: none
           tools: cs2pr
@@ -30,7 +38,8 @@ jobs:
       uses: "ramsey/composer-install@v3"
       with:
         # Bust the cache at least once a month - output format: YYYY-MM.
-        custom-cache-suffix: $(date -u "+%Y-%m")
+        # Keyed per PHP version so caches never cross versions.
+        custom-cache-suffix: $(date -u "+%Y-%m")-php${{ matrix.php }}
 
     - name: Install SVN
       run: sudo apt-get install subversion
