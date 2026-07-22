@@ -1,0 +1,391 @@
+{
+  "generated_at": "2026-07-22T18:07:38.934Z",
+  "base_commit": "c19fc9ec1e084f678f0eb2cf049f3f752712ceac",
+  "node_count": 23,
+  "nodes": {
+    "inc/Auth/AuthorizeCallback.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Auth",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "AuthorizeCallback",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": [
+        "WPMedia\\MCP\\OAuth\\Logging\\McpLogger",
+        "WPMedia\\MCP\\OAuth\\Views\\Render"
+      ]
+    },
+    "inc/Auth/AuthorizeEndpoint.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Auth",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "AuthorizeEndpoint",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": [
+        "WPMedia\\MCP\\OAuth\\Logging\\McpLogger"
+      ]
+    },
+    "inc/Auth/CimdResolver.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Auth",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "CimdResolver",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": [
+        "WPMedia\\MCP\\OAuth\\Logging\\McpLogger"
+      ]
+    },
+    "inc/Auth/ClaudeClientVerifier.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Auth",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "ClaudeClientVerifier",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": [
+        "WPMedia\\MCP\\OAuth\\Logging\\McpLogger"
+      ]
+    },
+    "inc/Auth/ConsentEndpoint.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Auth",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "ConsentEndpoint",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": [
+        "WPMedia\\MCP\\OAuth\\Logging\\McpLogger"
+      ]
+    },
+    "inc/Auth/Discovery/Endpoints.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Auth\\Discovery",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Endpoints",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": [
+        "WPMedia\\MCP\\OAuth\\Auth\\Http404Trait",
+        "WPMedia\\MCP\\OAuth\\Context",
+        "WPMedia\\MCP\\OAuth\\Logging\\McpLogger",
+        "Http404Trait"
+      ]
+    },
+    "inc/Auth/Http404Trait.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Auth",
+      "symbols": [
+        {
+          "kind": "trait",
+          "name": "Http404Trait",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": []
+    },
+    "inc/Auth/JWT.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Auth",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "JWT",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": []
+    },
+    "inc/Auth/ParseBodyTrait.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Auth",
+      "symbols": [
+        {
+          "kind": "trait",
+          "name": "ParseBodyTrait",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": []
+    },
+    "inc/Auth/RevokeEndpoint.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Auth",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "RevokeEndpoint",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": [
+        "WPMedia\\MCP\\OAuth\\Logging\\McpLogger",
+        "ParseBodyTrait"
+      ]
+    },
+    "inc/Auth/Rewrite.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Auth",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Rewrite",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": []
+    },
+    "inc/Auth/Router.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Auth",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Router",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": [
+        "WPMedia\\MCP\\OAuth\\Context",
+        "Http404Trait"
+      ]
+    },
+    "inc/Auth/SecretManager.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Auth",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "SecretManager",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": []
+    },
+    "inc/Auth/TokenEndpoint.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Auth",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "TokenEndpoint",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": [
+        "WPMedia\\MCP\\OAuth\\Logging\\McpLogger",
+        "ParseBodyTrait"
+      ]
+    },
+    "inc/Bootstrap.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Bootstrap",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": [
+        "WP\\MCP\\Core\\McpAdapter",
+        "WPMedia\\MCP\\OAuth\\Auth\\AuthorizeCallback",
+        "WPMedia\\MCP\\OAuth\\Auth\\AuthorizeEndpoint",
+        "WPMedia\\MCP\\OAuth\\Auth\\CimdResolver",
+        "WPMedia\\MCP\\OAuth\\Auth\\ClaudeClientVerifier",
+        "WPMedia\\MCP\\OAuth\\Auth\\ConsentEndpoint",
+        "WPMedia\\MCP\\OAuth\\Auth\\Discovery\\Endpoints",
+        "WPMedia\\MCP\\OAuth\\Auth\\RevokeEndpoint",
+        "WPMedia\\MCP\\OAuth\\Auth\\Rewrite",
+        "WPMedia\\MCP\\OAuth\\Auth\\Router",
+        "WPMedia\\MCP\\OAuth\\Auth\\SecretManager",
+        "WPMedia\\MCP\\OAuth\\Auth\\TokenEndpoint",
+        "WPMedia\\MCP\\OAuth\\Transport\\Server",
+        "WPMedia\\MCP\\OAuth\\Transport\\ServerRegistrar",
+        "WPMedia\\MCP\\OAuth\\Views\\Render"
+      ]
+    },
+    "inc/Context.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Context",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": []
+    },
+    "inc/Logging/McpLogger.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Logging",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "McpLogger",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": []
+    },
+    "inc/Transport/McpObservabilityHandler.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Transport",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "McpObservabilityHandler",
+          "extends": [],
+          "implements": [
+            "McpObservabilityHandlerInterface"
+          ]
+        }
+      ],
+      "imports": [
+        "WP\\MCP\\Infrastructure\\Observability\\Contracts\\McpObservabilityHandlerInterface",
+        "WP\\MCP\\Infrastructure\\Observability\\McpObservabilityHelperTrait",
+        "WPMedia\\MCP\\OAuth\\Logging\\McpLogger",
+        "McpObservabilityHelperTrait"
+      ]
+    },
+    "inc/Transport/OAuthHttpTransport.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Transport",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "OAuthHttpTransport",
+          "extends": [],
+          "implements": [
+            "McpRestTransportInterface"
+          ]
+        }
+      ],
+      "imports": [
+        "WP\\MCP\\Transport\\Contracts\\McpRestTransportInterface",
+        "WP\\MCP\\Transport\\Infrastructure\\HttpRequestContext",
+        "WP\\MCP\\Transport\\Infrastructure\\HttpRequestHandler",
+        "WP\\MCP\\Transport\\Infrastructure\\McpTransportContext",
+        "WP\\MCP\\Transport\\Infrastructure\\McpTransportHelperTrait",
+        "WPMedia\\MCP\\OAuth\\Auth\\JWT",
+        "WPMedia\\MCP\\OAuth\\Auth\\SecretManager",
+        "WPMedia\\MCP\\OAuth\\Logging\\McpLogger",
+        "McpTransportHelperTrait"
+      ]
+    },
+    "inc/Transport/Server.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Transport",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Server",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": [
+        "WP\\MCP\\Core\\McpAdapter",
+        "WP\\MCP\\Infrastructure\\ErrorHandling\\ErrorLogMcpErrorHandler"
+      ]
+    },
+    "inc/Transport/ServerRegistrar.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Transport",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "ServerRegistrar",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": [
+        "WP\\MCP\\Abilities\\DiscoverAbilitiesAbility",
+        "WP\\MCP\\Abilities\\ExecuteAbilityAbility",
+        "WP\\MCP\\Abilities\\GetAbilityInfoAbility",
+        "WPMedia\\MCP\\OAuth\\Context"
+      ]
+    },
+    "inc/Views/Render.php": {
+      "language": "php",
+      "namespace": "WPMedia\\MCP\\OAuth\\Views",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Render",
+          "extends": [],
+          "implements": []
+        }
+      ],
+      "imports": []
+    },
+    "inc/Views/templates/consent-screen.php": {
+      "language": "php",
+      "namespace": null,
+      "symbols": [],
+      "imports": []
+    }
+  },
+  "symbol_index": {
+    "WPMedia\\MCP\\OAuth\\Auth\\AuthorizeCallback": "inc/Auth/AuthorizeCallback.php",
+    "WPMedia\\MCP\\OAuth\\Auth\\AuthorizeEndpoint": "inc/Auth/AuthorizeEndpoint.php",
+    "WPMedia\\MCP\\OAuth\\Auth\\CimdResolver": "inc/Auth/CimdResolver.php",
+    "WPMedia\\MCP\\OAuth\\Auth\\ClaudeClientVerifier": "inc/Auth/ClaudeClientVerifier.php",
+    "WPMedia\\MCP\\OAuth\\Auth\\ConsentEndpoint": "inc/Auth/ConsentEndpoint.php",
+    "WPMedia\\MCP\\OAuth\\Auth\\Discovery\\Endpoints": "inc/Auth/Discovery/Endpoints.php",
+    "WPMedia\\MCP\\OAuth\\Auth\\Http404Trait": "inc/Auth/Http404Trait.php",
+    "WPMedia\\MCP\\OAuth\\Auth\\JWT": "inc/Auth/JWT.php",
+    "WPMedia\\MCP\\OAuth\\Auth\\ParseBodyTrait": "inc/Auth/ParseBodyTrait.php",
+    "WPMedia\\MCP\\OAuth\\Auth\\RevokeEndpoint": "inc/Auth/RevokeEndpoint.php",
+    "WPMedia\\MCP\\OAuth\\Auth\\Rewrite": "inc/Auth/Rewrite.php",
+    "WPMedia\\MCP\\OAuth\\Auth\\Router": "inc/Auth/Router.php",
+    "WPMedia\\MCP\\OAuth\\Auth\\SecretManager": "inc/Auth/SecretManager.php",
+    "WPMedia\\MCP\\OAuth\\Auth\\TokenEndpoint": "inc/Auth/TokenEndpoint.php",
+    "WPMedia\\MCP\\OAuth\\Bootstrap": "inc/Bootstrap.php",
+    "WPMedia\\MCP\\OAuth\\Context": "inc/Context.php",
+    "WPMedia\\MCP\\OAuth\\Logging\\McpLogger": "inc/Logging/McpLogger.php",
+    "WPMedia\\MCP\\OAuth\\Transport\\McpObservabilityHandler": "inc/Transport/McpObservabilityHandler.php",
+    "WPMedia\\MCP\\OAuth\\Transport\\OAuthHttpTransport": "inc/Transport/OAuthHttpTransport.php",
+    "WPMedia\\MCP\\OAuth\\Transport\\Server": "inc/Transport/Server.php",
+    "WPMedia\\MCP\\OAuth\\Transport\\ServerRegistrar": "inc/Transport/ServerRegistrar.php",
+    "WPMedia\\MCP\\OAuth\\Views\\Render": "inc/Views/Render.php"
+  }
+}
