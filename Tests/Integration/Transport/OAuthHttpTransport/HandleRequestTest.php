@@ -77,9 +77,13 @@ class HandleRequestTest extends TestCase {
 	 * @return \WP_User|\WP_Error
 	 */
 	private function validate( OAuthHttpTransport $transport, \WP_REST_Request $request ) {
-		// No setAccessible() call: since PHP 8.1 reflection can invoke private
-		// methods directly, and calling it emits a deprecation notice on 8.5+.
 		$method = new ReflectionMethod( OAuthHttpTransport::class, 'validate_bearer_token' );
+		// PHP < 8.1 requires setAccessible() before invoking a non-public method;
+		// from 8.1 it is unnecessary (a no-op), so we only call it on the older
+		// versions to keep the 7.4/8.0 legs green without touching newer ones.
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible( true );
+		}
 
 		// McpLogger::log() writes [MCP] diagnostics to output; swallow it so the
 		// suite's strict-output check does not flag the test as risky.
