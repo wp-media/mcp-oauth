@@ -66,25 +66,30 @@ per run.
 
 ### PHP version matrix (read before committing)
 
-**Four PHP versions are in play and none of them is the support floor** — a change can be
-green locally and in the PHPUnit job yet fail the phpcs/phpstan CI:
+CI exercises PHP across the full supported range, but your **local** `wp-env` runs a single
+version — so a change can be green locally yet fail a CI leg on an older or newer PHP:
 
 - **Support floor: PHP 7.4.** `composer.json` requires `php >=7.4`; `phpcs.xml.dist` enforces
   `PHPCompatibility` at `testVersion: 7.4-`. Do **not** use PHP 8.0+-only syntax/functions —
   e.g. `str_contains()`, `match`, enums, named arguments, nullsafe `?->`, `readonly`. Use
   `strpos()`/`stripos()` etc.
-- **PHPUnit CI job:** pinned to **PHP 8.2** (`.github/workflows/phpunit.yml`).
+- **PHPUnit CI:** runs a **matrix across PHP 7.4 → 8.5** (7.4 floor through the current
+  `latest`), one leg per version, `fail-fast: false` (`.github/workflows/phpunit.yml`). The
+  floor and every intermediate version are covered — e.g. reflection code that needs
+  `setAccessible()` on PHP < 8.1 is caught here (see Session learnings). Extend the `php:`
+  matrix list when a new PHP version ships.
 - **phpcs + phpstan CI:** run via the shared `wp-media/workflows` reusable workflows with
   `php-version: 'latest'` → **currently PHP 8.5, and a moving target**. A new PHP release can
   introduce deprecations that fail phpcs CI with **no code change** (this is how
   `curl_close()`, deprecated in 8.5, surfaced). The `DeprecatedFunctions` sniff reflects on the
   *running* interpreter, so version-specific deprecations are invisible to an older local PHP.
-- **Local `wp-env`:** default PHP (~8.3) — matches neither the PHPUnit job (8.2) nor the
-  phpcs/phpstan `latest` (8.5).
+- **Local `wp-env`:** a single default PHP (~8.3) — neither the 7.4 floor nor the
+  phpcs/phpstan `latest`, so a green local run proves neither end of the range.
 
 Practical rule: before committing, run `phpcs` against **both** the 7.4 floor **and** the
 current `latest` (e.g. via a throwaway `php:8.5-cli` container) to catch version-specific
-deprecations the `wp-env` container cannot see.
+deprecations the `wp-env` container cannot see. PHPUnit itself is now covered end-to-end by
+the CI matrix.
 
 ### Test conventions
 
@@ -122,6 +127,10 @@ deprecations the `wp-env` container cannot see.
 - **`@runInSeparateProcess` does not reliably re-isolate `define()`d WP constants**
   (`ABSPATH`/`WPINC`) in the `wp-env` unit setup ("already defined") — prefer an integration
   test for logic that depends on those constants.
+- **`ReflectionMethod` on a non-public method needs `setAccessible(true)` on PHP < 8.1.**
+  From 8.1 it is a no-op (private members are always reflectable), so it is tempting to omit —
+  but omitting it throws `ReflectionException: Trying to invoke private method …` on the 7.4/8.0
+  matrix legs. Guard it: `if ( PHP_VERSION_ID < 80100 ) { $method->setAccessible( true ); }`.
 - **Editing byte-literal strings** (e.g. `"\x00\xff…"` prefixes) with automated edit tools is
   error-prone because `\x` escapes get reinterpreted — anchor edits on adjacent escape-free
   lines, or wrap byte literals in a named helper/constant.
