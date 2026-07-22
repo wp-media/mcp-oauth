@@ -168,10 +168,11 @@ class HandleRequestTest extends TestCase {
 			/**
 			 * Returns a fixed public IP instead of a real cURL connect.
 			 *
-			 * @param string $host The client_id URL host.
+			 * @param string      $host      The client_id URL host.
+			 * @param string|null $ca_bundle Unused; the real preflight is stubbed.
 			 * @return string
 			 */
-			protected function connect_and_get_ip( string $host ): string {
+			protected function connect_and_get_ip( string $host, ?string $ca_bundle = null ): string {
 				return '93.184.216.34';
 			}
 		};

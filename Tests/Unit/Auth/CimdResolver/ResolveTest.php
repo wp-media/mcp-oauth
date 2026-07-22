@@ -86,7 +86,7 @@ class ResolveTest extends TestCase {
 			$connect_ip = array_key_exists( 'connect_ip', $config ) ? $config['connect_ip'] : '93.184.216.34';
 			$resolver->shouldReceive( 'connect_and_get_ip' )
 				->once()
-				->with( $host )
+				->with( $host, Mockery::any() )
 				->andReturn( $connect_ip );
 		} else {
 			$resolver->shouldReceive( 'connect_and_get_ip' )->never();
@@ -262,7 +262,7 @@ class ResolveTest extends TestCase {
 
 		$resolver = Mockery::mock( CimdResolver::class . '[connect_and_get_ip,build_resolve_pin]', [ $verifier ] );
 		$resolver->shouldAllowMockingProtectedMethods();
-		$resolver->shouldReceive( 'connect_and_get_ip' )->once()->with( $host )->andReturn( $ip );
+		$resolver->shouldReceive( 'connect_and_get_ip' )->once()->with( $host, Mockery::any() )->andReturn( $ip );
 		// The pin must be built from the connected IP, not a re-resolved one.
 		$resolver->shouldReceive( 'build_resolve_pin' )->once()->with( $host, $ip )->andReturn( $pin );
 

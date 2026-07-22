@@ -186,7 +186,7 @@ class CimdResolver {
 		// unpinned fetch (the allowlist still constrains the host). There is no
 		// raw-DNS fallback, which would reintroduce an unbounded-timeout lookup.
 		if ( extension_loaded( 'curl' ) ) {
-			$ip = $this->connect_and_get_ip( $host );
+			$ip = $this->connect_and_get_ip( $host, $this->filtered_ca_bundle( $url ) );
 			if ( null === $ip ) {
 				// connect_and_get_ip() already logged the reason.
 				return null;
@@ -297,6 +297,32 @@ class CimdResolver {
 	}
 
 	/**
+	 * Resolve the CA bundle the real fetch will verify against, honoring any
+	 * site override, so the preflight's TLS trust store matches wp_safe_remote_get().
+	 *
+	 * Mirrors WP_Http::request(): seed 'sslcertificates' with WordPress core's
+	 * default bundle (ABSPATH . WPINC . '/certificates/ca-bundle.crt') and run
+	 * the args through the 'http_request_args' filter for this exact URL — the
+	 * same override point the real fetch applies. A missing/unreadable path
+	 * (including a site that disables verification by unsetting the bundle) falls
+	 * back to the system CA store rather than pinning a bogus path.
+	 *
+	 * @param string $url The client_id URL the real fetch will request.
+	 * @return string|null Absolute path to the effective CA bundle, or null for the system store.
+	 */
+	protected function filtered_ca_bundle( string $url ): ?string {
+		if ( ! defined( 'ABSPATH' ) || ! defined( 'WPINC' ) ) {
+			return null;
+		}
+
+		$default = ABSPATH . WPINC . '/certificates/ca-bundle.crt';
+		$args    = apply_filters( 'http_request_args', [ 'sslcertificates' => $default ], $url ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- http_request_args is a WordPress core filter; it is applied here (not defined) to mirror WP_Http::request() and match the real fetch's trust store.
+		$bundle  = ( is_array( $args ) && isset( $args['sslcertificates'] ) ) ? (string) $args['sslcertificates'] : $default;
+
+		return is_readable( $bundle ) ? $bundle : null;
+	}
+
+	/**
 	 * Time-bounded cURL connect-only preflight: resolve DNS and open a TCP/TLS
 	 * connection under a firm timeout, then report the IP actually connected to.
 	 *
@@ -306,10 +332,12 @@ class CimdResolver {
 	 * block on the OS resolver — cURL bounds both the connect and (on an
 	 * async-DNS-capable libcurl) the name-resolution phase at CONNECT_TIMEOUT.
 	 *
-	 * @param string $host The client_id URL host (always connected on port 443).
+	 * @param string      $host      The client_id URL host (always connected on port 443).
+	 * @param string|null $ca_bundle Absolute path to the CA bundle to verify against,
+	 *                               or null to use the system CA store.
 	 * @return string|null The connected IP (CURLINFO_PRIMARY_IP), or null on failure/timeout.
 	 */
-	protected function connect_and_get_ip( string $host ): ?string {
+	protected function connect_and_get_ip( string $host, ?string $ca_bundle = null ): ?string {
 		// The WP HTTP API cannot perform a connect-only probe or report the
 		// connected IP (CURLINFO_PRIMARY_IP), so this SSRF preflight uses the
 		// cURL functions directly and intentionally. The curl_close() calls
@@ -327,16 +355,12 @@ class CimdResolver {
 			CURLOPT_TIMEOUT        => self::CONNECT_TIMEOUT,
 		];
 
-		// Verify TLS against the same CA bundle WordPress core's own HTTP API
-		// uses (ABSPATH . WPINC . '/certificates/ca-bundle.crt', the default
-		// 'sslcertificates' path WP_Http_Curl passes to CURLOPT_CAINFO), so the
-		// preflight's trust store matches the real wp_safe_remote_get() fetch and
-		// a legitimate host is not false-rejected on a system without a CA store.
-		if ( defined( 'ABSPATH' ) && defined( 'WPINC' ) ) {
-			$ca_bundle = ABSPATH . WPINC . '/certificates/ca-bundle.crt';
-			if ( is_readable( $ca_bundle ) ) {
-				$options[ CURLOPT_CAINFO ] = $ca_bundle;
-			}
+		// Verify TLS against the same CA bundle the real fetch will use (resolved
+		// by filtered_ca_bundle() through the http_request_args filter), so the
+		// preflight's trust store matches wp_safe_remote_get() and a legitimate
+		// host is not false-rejected. A null bundle falls back to the system store.
+		if ( null !== $ca_bundle ) {
+			$options[ CURLOPT_CAINFO ] = $ca_bundle;
 		}
 
 		curl_setopt_array( $ch, $options );

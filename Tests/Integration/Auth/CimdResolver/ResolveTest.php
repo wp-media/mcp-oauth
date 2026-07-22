@@ -218,10 +218,11 @@ class ResolveTest extends TestCase {
 			/**
 			 * Returns the configured stub IP instead of a real cURL connect.
 			 *
-			 * @param string $host The client_id URL host.
+			 * @param string      $host      The client_id URL host.
+			 * @param string|null $ca_bundle Unused; the real preflight is stubbed.
 			 * @return string|null
 			 */
-			protected function connect_and_get_ip( string $host ): ?string {
+			protected function connect_and_get_ip( string $host, ?string $ca_bundle = null ): ?string {
 				return $this->stub_ip;
 			}
 		};
