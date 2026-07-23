@@ -1,5 +1,26 @@
 - If you encounter something surprising or confusing in this project, flag it as a comment.
 
+## Operating principles
+
+These apply to every AI agent and skill working in this repo, before any tool-specific guidance:
+
+1. **Surface assumptions before building.** If the spec or codebase is ambiguous, state the
+   assumption rather than silently guessing.
+2. **Stop when requirements conflict.** If the issue, the spec, and the code disagree, surface the
+   conflict instead of proceeding on a guess.
+3. **Prefer the simplest correct solution.** A boring, obvious approach beats a clever one that
+   adds risk.
+4. **Touch only what you were asked to touch.** No drive-by refactors or unrelated renames — scope
+   discipline is what makes a PR mergeable.
+5. **Verify, don't infer.** "Seems right" never closes a task. Run the tests/tools; don't reason
+   that the code works.
+
+> This file is the authority the delivery-pipeline agents (`.claude/agents/`) and the delivery +
+> WordPress skills (`.claude/skills/`) read at the start of their context. They derive
+> repo/platform/branch from git and read everything else — commands, labels, conventions — from
+> here. Keep repo-specific facts in **this file**, not in those templates: they are unversioned
+> copies of the source plugins and get overwritten when the plugins update.
+
 ## Project Configuration
 
 ### Local test environment (Docker)
@@ -53,6 +74,11 @@ per run.
 - Branch naming: `enhancement/<issue>-<slug>` (feature), `fix/<issue>-<slug>` (bug),
   `tests/<kebab-class>` (test-only). Open PRs as draft; apply the `Made by AI` label to
   AI-generated PRs.
+- **Protected branch:** never push directly to `main` or force-push it — always work on a
+  `fix/…` / `enhancement/…` / `tests/…` branch and open a PR.
+- **Commit format:** `type(scope): summary` (≤72 chars), `type` ∈
+  `feat`/`fix`/`chore`/`refactor`/`test`/`docs`. Include the model trailer so a later regression can
+  be traced to its author: `Co-Authored-By: <model> <noreply@anthropic.com>`.
 
 ### Composer commands (quick reference)
 
@@ -62,7 +88,13 @@ per run.
 | Integration tests | `composer test-integration` | Yes (real WP + MySQL) |
 | Coding standards | `composer phpcs` (autofix: `composer phpcs:fix`) | No |
 | Static analysis | `composer phpstan` (level 5) | No |
+| Install | `composer install` | No |
 | Everything | `composer run-tests` | Yes |
+
+> **Run these inside the wp-env containers** (not on the host) to avoid host/container drift — see
+> *Local test environment* above. There is **no build step** and no JS lint (PHP library).
+> Pipeline mapping: `implementer` and `dod` use `test-unit`/`test-integration`,
+> `phpcs` (+`phpcs:fix`), and `phpstan` (level 5).
 
 ### PHP version matrix (read before committing)
 
@@ -117,6 +149,45 @@ the CI matrix.
 - Issue lifecycle: `Ready for review` exists; **`In Progress` does not** — only add labels that
   exist, or create them first.
 
+## Project shape & WordPress conventions
+
+Read by the WordPress engineering skills (they resolve these from this file first, then docs, then
+the code):
+
+- **This is a Composer library, not a distributable plugin.** No plugin header, no `readme.txt`, no
+  WordPress.org submission, no activation/deactivation hooks. Skill guidance about plugin headers,
+  the WP.org Plugin Check, or `readme.txt` does **not** apply.
+- **No admin UI / JS / enqueue, and no `$wpdb`.** The only rendered output is the server-side
+  consent screen (`inc/Views/`); the only direct persistence is `update_option`/`delete_option`
+  (rewrite-version flag, secrets). Skill sections on admin client-side hygiene,
+  React/`wp_localize_script`, N+1 `$wpdb` queries, and post-save/activation performance do not apply.
+- **Access control is OAuth/JWT-scoped, not WordPress capabilities.** There is no
+  `current_user_can`/capability map; the server is gated by JWT + the
+  `wpmedia_mcp_oauth_server_enabled` filter (`Context::is_enabled()`), plus one REST
+  `permission_callback` in `inc/Transport/OAuthHttpTransport.php`.
+- **Request routing is rewrite-rule + `template_redirect`** (`inc/Bootstrap.php`,
+  `inc/Auth/Router.php`), **not** REST controllers — the sole `register_rest_route` lives in
+  `inc/Transport/OAuthHttpTransport.php`. Trace requests through the query-var/rewrite path, not
+  `WP_REST_Controller::register_routes()`.
+- **Hooks are wired directly** with `add_action`/`add_filter` in `inc/Bootstrap.php` — no
+  Subscriber/ServiceProvider abstraction.
+- **Text domain:** `mcp-oauth`. **Global prefix:** `wpmedia` / `wpmedia_mcp_oauth_`. **Object-cache
+  group:** none. **PHPCS ruleset:** `phpcs.xml.dist` (WordPress + `PHPCompatibility testVersion 7.4-`,
+  minimum WP 6.6).
+- **WordPress floor is 6.6**, so guard 6.9-only APIs (e.g. `function_exists( 'wp_register_ability' )`).
+
+## Pipeline conventions
+
+- **Grooming — always HIGH risk regardless of effort:** any change to authentication, the OAuth
+  flow, token/JWT issuance or validation, secret storage, or the consent/authorize/token endpoints.
+  This is an auth library — treat its security surface as high-risk by default.
+- **Review focus:** OAuth/JWT correctness, exact-string assertions at native-call seams, output
+  escaping in `inc/Views/`, and the PHP 7.4 syntax floor (see *PHP version matrix*). Standard
+  secure-coding checklist otherwise.
+- **Local run / browser QA: none.** Headless library with no UI — `qa-engineer` does API/analysis
+  validation only, and `e2e-qa-tester` (Playwright) has no surface here. Do not boot a browser or a
+  dev server.
+
 ## Session learnings (project-specific gotchas)
 
 - **`curl_setopt()` and `extension_loaded()` are not mockable** under this repo's Brain\Monkey
@@ -137,3 +208,18 @@ the CI matrix.
 - **Knowledge graph:** a symbol/dependency graph lives at
   `.claude/graph/dependency-graph.json`. Refresh it before symbol lookups with the
   knowledge-graph skill's builder (`build-graph.js`); it scans `inc/` and is incremental.
+
+## Known local template deviations
+
+The agents/skills under `.claude/` are copies of the `gas-delivery-pipeline-templates` (2.0.0) and
+`gas-wordpress-engineering` (0.1.0) plugins. A few were edited locally to match this repo;
+**re-apply these after re-copying from an updated plugin** (or, better, fix them upstream):
+
+- `.claude/skills/dod/SKILL.md` — base-branch guard defaults to `main` (was `develop`).
+- `.claude/skills/orchestrator/SKILL.md` — test-only branch prefix is `tests/<kebab-class>` (was
+  `test`); the `Ready for review` transition no longer tries to remove a non-existent `In Progress`
+  label.
+- `.claude/skills/wordpress-phpunit-tests/SKILL.md` — integration tests extend the project base
+  `TestCase`, never `WP_UnitTestCase` directly.
+
+Everything else repo-specific is carried by this file rather than edited into the templates.
