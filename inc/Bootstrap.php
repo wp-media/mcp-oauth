@@ -20,6 +20,7 @@ use WPMedia\MCP\OAuth\Auth\CimdResolver;
 use WPMedia\MCP\OAuth\Auth\ClaudeClientVerifier;
 use WPMedia\MCP\OAuth\Auth\ConsentEndpoint;
 use WPMedia\MCP\OAuth\Auth\Discovery\Endpoints as DiscoveryEndpoints;
+use WPMedia\MCP\OAuth\Auth\Discovery\HealthCheck as DiscoveryHealthCheck;
 use WPMedia\MCP\OAuth\Auth\RevokeEndpoint;
 use WPMedia\MCP\OAuth\Auth\Rewrite;
 use WPMedia\MCP\OAuth\Auth\Router;
@@ -116,6 +117,7 @@ final class Bootstrap {
 
 		$this->register_auth_router();
 		$this->register_discovery( $this->context );
+		$this->register_discovery_health_check( $this->context );
 		$this->register_transport( $this->context );
 
 		add_action( 'init', [ SecretManager::class, 'ensure_secret' ], 5 );
@@ -165,6 +167,18 @@ final class Bootstrap {
 		add_action( 'init', [ $discovery, 'add_rewrite_rules' ] );
 		add_filter( 'query_vars', [ $discovery, 'add_query_vars' ] );
 		add_action( 'template_redirect', [ $discovery, 'handle_request' ] );
+	}
+
+	/**
+	 * Wire the Site Health self-check for the .well-known discovery documents.
+	 *
+	 * @param Context $context OAuth server context.
+	 * @return void
+	 */
+	private function register_discovery_health_check( Context $context ): void {
+		$health_check = new DiscoveryHealthCheck( $context );
+
+		add_filter( 'site_status_tests', [ $health_check, 'add_test' ] );
 	}
 
 	/**
