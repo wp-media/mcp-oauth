@@ -225,6 +225,10 @@ class HealthCheck {
 	/**
 	 * Build the Site Health result array for a given combined status.
 	 *
+	 * Builds the common shell once; only `description`/`actions` (and, in the
+	 * short-circuit/good branches, nothing else) vary per branch, so every
+	 * branch returns the exact same structure as before this was consolidated.
+	 *
 	 * @param string   $status  One of 'good', 'recommended', 'critical'.
 	 * @param string[] $failing Display names of the documents that did not report 'good'.
 	 * @param string   $summary Optional override for the description's leading sentence
@@ -235,76 +239,56 @@ class HealthCheck {
 		$loopback_caveat = __( 'This check runs from the server to itself. A "Good" result here does not guarantee external clients can reach these documents: a CDN, WAF, or reverse proxy in front of the site can still 404 these paths for external traffic while the server\'s own loopback request bypasses it. Verify with an external <code>curl</code> request after applying any server-config change.', 'mcp-oauth' );
 
 		if ( '' !== $summary ) {
-			return [
-				'label'       => __( 'MCP OAuth discovery documents', 'mcp-oauth' ),
-				'status'      => $status,
-				'badge'       => [
-					'label' => __( 'Security', 'mcp-oauth' ),
-					'color' => 'blue',
-				],
-				'description' => sprintf( '<p>%s</p>', $summary ),
-				'actions'     => sprintf( '<p>%s</p>', $loopback_caveat ),
-				'test'        => self::TEST_KEY,
-			];
-		}
-
-		if ( 'good' === $status ) {
-			return [
-				'label'       => __( 'MCP OAuth discovery documents', 'mcp-oauth' ),
-				'status'      => $status,
-				'badge'       => [
-					'label' => __( 'Security', 'mcp-oauth' ),
-					'color' => 'blue',
-				],
-				'description' => sprintf(
-					'<p>%s</p>',
-					__( 'Both .well-known OAuth discovery documents (oauth-protected-resource and oauth-authorization-server) responded with HTTP 200 and valid JSON.', 'mcp-oauth' )
-				),
-				'actions'     => sprintf( '<p>%s</p>', $loopback_caveat ),
-				'test'        => self::TEST_KEY,
-			];
-		}
-
-		$document_list = implode( ', ', $failing );
-
-		if ( 'critical' === $status ) {
+			$description = sprintf( '<p>%s</p>', $summary );
+			$actions     = sprintf( '<p>%s</p>', $loopback_caveat );
+		} elseif ( 'good' === $status ) {
 			$description = sprintf(
 				'<p>%s</p>',
-				sprintf(
-					/* translators: %s: comma-separated list of failing discovery document names. */
-					__( 'The following .well-known discovery document(s) returned a bare 404 with no WordPress-originated response header: %s. This matches the fingerprint of a physical .well-known/acme-challenge/ directory (provisioned by the host for Let\'s Encrypt auto-SSL) intercepting the request before WordPress runs — likely the cause here, though this should be confirmed against the actual .well-known/acme-challenge/ directory on the server before concluding root cause.', 'mcp-oauth' ),
-					esc_html( $document_list )
-				)
+				__( 'Both .well-known OAuth discovery documents (oauth-protected-resource and oauth-authorization-server) responded with HTTP 200 and valid JSON.', 'mcp-oauth' )
 			);
-
-			$actions = sprintf(
-				'<p>%s</p><p>%s</p><p>%s</p>',
-				__( 'Apply the Apache or Nginx snippet from this library\'s README ("Hosting: .well-known conflicts") to re-enable routing for these two paths without touching acme-challenge/.', 'mcp-oauth' ),
-				__( 'If a CDN or page cache is in front of the site, purge it after applying the fix — a stale cached 404 for these paths can otherwise persist even once the server config is corrected.', 'mcp-oauth' ),
-				$loopback_caveat
-			);
+			$actions     = sprintf( '<p>%s</p>', $loopback_caveat );
 		} else {
-			$description = sprintf(
-				'<p>%s</p>',
-				sprintf(
-					/* translators: %s: comma-separated list of failing discovery document names. */
-					__( 'The following .well-known discovery document(s) did not respond as expected: %s. This does not match the confirmed .well-known/acme-challenge/ interception fingerprint, so the cause is inconclusive from this check alone (it may be a timeout, an access wall such as HTTP Basic Auth or a WAF, or a WordPress-served error).', 'mcp-oauth' ),
-					esc_html( $document_list )
-				)
-			);
+			$document_list = implode( ', ', $failing );
 
-			$actions = sprintf(
-				'<p>%s</p><p>%s</p>',
-				__( 'Check your error/access logs for the requests to these paths, and rule out an authentication wall (staging HTTP Basic Auth, a WAF, or bot mitigation) before assuming a routing problem.', 'mcp-oauth' ),
-				$loopback_caveat
-			);
+			if ( 'critical' === $status ) {
+				$description = sprintf(
+					'<p>%s</p>',
+					sprintf(
+						/* translators: %s: comma-separated list of failing discovery document names. */
+						__( 'The following .well-known discovery document(s) returned a bare 404 with no WordPress-originated response header: %s. This matches the fingerprint of a physical .well-known/acme-challenge/ directory (provisioned by the host for Let\'s Encrypt auto-SSL) intercepting the request before WordPress runs — likely the cause here, though this should be confirmed against the actual .well-known/acme-challenge/ directory on the server before concluding root cause.', 'mcp-oauth' ),
+						esc_html( $document_list )
+					)
+				);
+
+				$actions = sprintf(
+					'<p>%s</p><p>%s</p><p>%s</p>',
+					__( 'Apply the Apache or Nginx snippet from this library\'s README ("Hosting: .well-known conflicts") to re-enable routing for these two paths without touching acme-challenge/.', 'mcp-oauth' ),
+					__( 'If a CDN or page cache is in front of the site, purge it after applying the fix — a stale cached 404 for these paths can otherwise persist even once the server config is corrected.', 'mcp-oauth' ),
+					$loopback_caveat
+				);
+			} else {
+				$description = sprintf(
+					'<p>%s</p>',
+					sprintf(
+						/* translators: %s: comma-separated list of failing discovery document names. */
+						__( 'The following .well-known discovery document(s) did not respond as expected: %s. This does not match the confirmed .well-known/acme-challenge/ interception fingerprint, so the cause is inconclusive from this check alone (it may be a timeout, an access wall such as HTTP Basic Auth or a WAF, or a WordPress-served error).', 'mcp-oauth' ),
+						esc_html( $document_list )
+					)
+				);
+
+				$actions = sprintf(
+					'<p>%s</p><p>%s</p>',
+					__( 'Check your error/access logs for the requests to these paths, and rule out an authentication wall (staging HTTP Basic Auth, a WAF, or bot mitigation) before assuming a routing problem.', 'mcp-oauth' ),
+					$loopback_caveat
+				);
+			}
 		}
 
 		return [
 			'label'       => __( 'MCP OAuth discovery documents', 'mcp-oauth' ),
 			'status'      => $status,
 			'badge'       => [
-				'label' => __( 'Security', 'mcp-oauth' ),
+				'label' => __( 'Configuration', 'mcp-oauth' ),
 				'color' => 'blue',
 			],
 			'description' => $description,

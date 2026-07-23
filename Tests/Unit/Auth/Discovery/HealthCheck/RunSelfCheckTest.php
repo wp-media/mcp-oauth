@@ -125,6 +125,8 @@ class RunSelfCheckTest extends TestCase {
 		$result = $health_check->run_self_check();
 
 		$this->assertSame( 'good', $result['status'] );
+		$this->assertSame( 'Configuration', $result['badge']['label'] );
+		$this->assertSame( 'blue', $result['badge']['color'] );
 	}
 
 	/**
@@ -214,7 +216,7 @@ class RunSelfCheckTest extends TestCase {
 			'label'       => 'MCP OAuth discovery documents',
 			'status'      => 'good',
 			'badge'       => [
-				'label' => 'Security',
+				'label' => 'Configuration',
 				'color' => 'blue',
 			],
 			'description' => '<p>cached</p>',
