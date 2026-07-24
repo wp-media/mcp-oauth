@@ -187,6 +187,15 @@ the code):
 - **Local run / browser QA: none.** Headless library with no UI — `qa-engineer` does API/analysis
   validation only, and `e2e-qa-tester` (Playwright) has no surface here. Do not boot a browser or a
   dev server.
+- **One warm test environment per run.** When a run needs `wp-env` (integration tests), the
+  orchestrator boots it **once** at startup and keeps it warm; agents are told it is already up.
+  Do not boot `wp-env` per agent. If the default ports 8888/8889 are occupied, the gitignored
+  `.wp-env.override.json` with alternate ports is the fix (pre-created by the pipeline; see the
+  orchestrator's startup pre-flight).
+- **Reviewers reuse CI results.** The GitHub CI matrix and DOD L2 run the full
+  `test-unit`/`test-integration`/`phpcs`/`phpstan` suites on the PR commit. `lead-reviewer` and
+  `qa-engineer` should rely on those results — they run code only to verify a specific behaviour
+  (an acceptance criterion, a targeted regression guard), not to re-run suites CI already runs.
 
 ## Session learnings (project-specific gotchas)
 
@@ -221,5 +230,17 @@ The agents/skills under `.claude/` are copies of the `gas-delivery-pipeline-temp
   label.
 - `.claude/skills/wordpress-phpunit-tests/SKILL.md` — integration tests extend the project base
   `TestCase`, never `WP_UnitTestCase` directly.
+- **Pipeline reliability & cost edits** (general improvements, worth upstreaming — from a retro of
+  the issue #23 run):
+  - `.claude/agents/{grooming-agent,challenger,implementer,lead-reviewer,qa-engineer,pr-opener,ticket-writer}.md`
+    — each gained a **"Final output discipline (hard rule)"** section requiring the agent's final
+    message to be its complete JSON contract (agents were observed stopping on an intermediate note
+    before emitting the contract, forcing expensive resumes).
+  - `.claude/skills/orchestrator/SKILL.md` — added an **"Agent handoff & recovery"** section
+    (validate the contract on return; recover a missing one with a one-line resume nudge, not
+    transcript forensics); a **startup env-warm-up pre-flight** (boot `wp-env` once per run); a
+    **grooming round-trip reduction** note (lock a resolved either/or into the next agent's dispatch
+    instead of re-grooming to edit prose); a **"reviewers reuse CI"** instruction and
+    **background CI-watch** for the parallel gates; and **milestone-batched HTML-log writes**.
 
 Everything else repo-specific is carried by this file rather than edited into the templates.

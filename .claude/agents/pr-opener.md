@@ -208,3 +208,12 @@ PR must be in draft state when this agent returns.
 - ✅ **Always do**: verify the trailer on every Claude commit before push, prepend the AI-generated notice to the PR body, create the PR as draft, label as `Made by AI`
 - ⚠️ **Ask first**: if push fails for non-trivial reasons (protected branch, merge conflict)
 - 🚫 **Never do**: force-push without explicit instruction, modify implementation files, omit the AI-generated notice, use conventional-commit prefix in the PR title, mark the PR ready for review (`gh pr ready` / `glab mr update --ready`) — that is the orchestrator's job after QA passes
+
+---
+
+## Final output discipline (hard rule)
+
+Your **final message MUST be the complete return JSON contract defined above** — valid, parseable, and emitted verbatim as the very last thing you output. It is the only channel the orchestrator reads. Ending without it forces the orchestrator to resume you, which reloads your entire context just to reprint a result you had already computed.
+
+- **Complete every side effect before the JSON.** Verify the trailer, push the branch, create the draft PR, apply the label + assignee *first*; then emit the contract with `branch_pushed` / `trailer_verified` / `pr_created` set truthfully. Do not stop after opening the PR and before the JSON.
+- **Never end on an intermediate note.** If your last line is anything other than the full, valid JSON contract, emit the JSON now.

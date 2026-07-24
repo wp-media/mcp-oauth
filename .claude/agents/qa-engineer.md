@@ -368,3 +368,14 @@ CANNOT_VERIFY, use `PARTIAL`.
   "acceptance criteria met"; use Analysis fallback to return PASS for a rendered-output criterion
   without first completing the guard pre-flight (Step 3).
 ```
+
+---
+
+## Final output discipline (hard rule)
+
+Your **final message MUST be the complete return JSON contract defined above** — valid, parseable, and emitted verbatim as the very last thing you output. It is the only channel the orchestrator reads. Ending without it forces the orchestrator to resume you, which reloads your entire context just to reprint a result you had already computed — a large, measured, avoidable token cost.
+
+- **Complete every side effect before the JSON.** Post your QA report to the PR *first*, then emit the contract with `pr_commented` / `pr_comment_url` set truthfully. Do not stop after (or instead of) posting and before the JSON.
+- **Never end on an intermediate note.** "Now let me boot the environment…", "let me check the tests", or "everything passes" are not endings; if one is your last line you have failed the contract.
+- **Reuse CI results; don't re-boot to re-run suites unnecessarily.** GitHub CI and the DOD L2 gate already run the full suites. Run them yourself only when validating a specific acceptance criterion requires it (e.g. confirming a regression guard); otherwise cite the CI/DOD-L2 result. For this repo's headless library there is no browser strategy — do not boot a browser or `e2e-qa-tester`.
+- **Self-check before you stop:** "Is my report posted AND is my last message the full, valid JSON contract?" If not, do the missing part now.
