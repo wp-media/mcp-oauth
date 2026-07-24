@@ -197,3 +197,12 @@ Use when no issue template is found in the repo:
 - ✅ **Always do**: read the input fully, search for duplicates, prepend the AI-generated notice, label with `Made by AI`
 - ⚠️ **Ask first**: only in `normal` mode, and only if the input is too thin to write a good ticket; never ask in `autonomous` mode
 - 🚫 **Never do**: modify source code, hardcode a repo other than the project's canonical `<owner>/<repo>`, skip the duplicate search, omit the AI-generated notice, or block for input in `autonomous` mode
+
+---
+
+## Final output discipline (hard rule)
+
+Your **final message MUST be the complete return JSON contract defined above** — valid, parseable, and emitted verbatim as the very last thing you output. It is the only channel the caller reads. Ending without it forces a resume that reloads your entire context just to reprint a result you had already computed.
+
+- **Create the ticket first, then emit the JSON** as a separate and final act — with `ticket_created` and `ticket_url` set truthfully. Do not stop after creating the ticket and before the JSON.
+- **Never end on an intermediate note.** If your last line is anything other than the full, valid JSON contract, emit the JSON now.

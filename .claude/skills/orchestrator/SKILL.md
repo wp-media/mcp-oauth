@@ -66,6 +66,18 @@ Identify and record `CURRENT_MODEL` — the model name running in this conversat
 `Claude Haiku 4.5`). Pass it to every spawned agent so they can use it in commit trailers,
 return JSON `co_authored_by` fields, and issue/PR comments.
 
+**Pre-flight the test environment once (if the project has a bootable one).** Multiple agents
+(implementer, QA, sometimes lead review) run the project's test suites. If each boots the
+environment independently, the boot cost — and any one-time setup friction (port conflicts,
+tool-version quirks) — is paid several times over. If AGENTS.md → Project Configuration defines a
+local test environment, warm it **once** near startup and keep it running for the whole run, then
+tell each agent it is already up (pass the working invocation / ports / any override file in the
+dispatch). Resolve known friction here, once, rather than letting each agent rediscover it — e.g.
+for this repo, create the gitignored `.wp-env.override.json` with non-default ports if the defaults
+are occupied, and ensure a recent `git` is on `PATH` for `wp-env`'s sparse-checkout (see AGENTS.md).
+Skip this entirely for projects with no bootable environment (e.g. no local-run — headless
+libraries validated purely by unit tests / CI).
+
 ---
 
 ## Mandatory pipeline gates
@@ -143,7 +155,7 @@ user can see what mode you picked.
 Path: `.TemporaryItems/Issues/<repo>/issue-<N>-workflow-log.html`
 
 - **Create** the log at startup with just the header and an empty event list.
-- **Rewrite the full file** after every action — the event list grows with each update.
+- **Rewrite the full file** to add events — the event list grows with each update. **Batch by milestone, not by micro-action:** write one update per routing decision, agent return, or gate result (typically one write per pipeline step), not one per intermediate tool call. Coalescing an agent event and the routing decision that follows it into a single rewrite is preferred — each rewrite re-sends the whole (growing) file, so fewer, milestone-aligned writes keep orchestrator token use down without losing any event.
 - See `.claude/skills/orchestrator/html-log-format.md` for the full HTML structure and event patterns. Load it on demand (not at session start) to keep context lean.
 
 Maintain in your context tracking:
@@ -156,6 +168,30 @@ Maintain in your context tracking:
 **Synthesis rule:** Read routing-relevant fields directly from each agent's return JSON. This keeps the orchestrator context lean across long pipeline runs. Write full return JSONs to the HTML log — do not accumulate them in orchestrator context.
 
 ---
+
+## Agent handoff & recovery
+
+Every spawned agent is expected to make its **final message the complete JSON contract** (the
+agent definitions enforce this as a hard rule). When an agent returns, before routing on it:
+
+1. **Check for the contract first.** Does the agent's final message contain its complete,
+   parseable JSON contract? If yes → route on it.
+2. **If the contract is missing** (the agent stopped on an intermediate note such as "now let me
+   verify…" — an observed, recurring failure mode): **immediately resume the same agent with a
+   one-line nudge** — e.g. *"You stopped before returning your JSON contract. Emit it now as your
+   final message, per the contract; do not start new work unless something is genuinely
+   unresolved."* Resume the same agent (by name/ID) so its context is intact — do **not** re-spawn
+   from scratch.
+3. **Do not do transcript forensics to recover a missing contract.** Reading the agent's raw
+   transcript (often hundreds of KB) into orchestrator context is expensive and almost never
+   necessary — the nudge in step 2 recovers the already-computed result far more cheaply. Only
+   inspect the transcript, or cheap external state (`git log`/`git status` for the implementer, PR
+   comments for reviewers), if the **resume itself** fails to produce the contract, or to confirm a
+   side effect (commit, pushed branch, posted comment) actually happened.
+4. **Prevention beats recovery.** A resume reloads the agent's entire prior context just to reprint
+   a result it already had — nearly as expensive as the original run. The hard rule in each agent
+   definition exists to avoid this; if an agent still stops early repeatedly, treat it as a prompt
+   bug to fix in the agent definition, not a per-run cost to absorb.
 
 ## JSON return contracts
 
@@ -438,6 +474,17 @@ Handling:
 Log a ROUTING DECISION event for each open_question — either "paused for user input" or
 "proceeding with documented assumption: <text>".
 
+**Resolve the decision without an extra grooming round-trip when you can.** When an
+`open_question` is a bounded either/or (e.g. "Option A vs Option B") and the user picks a side,
+you usually do **not** need to re-invoke grooming just to edit the spec. Prefer to **lock the
+chosen option into the dispatch context of the next agent** (challenger, then implementer) —
+state the resolved choice and the discarded alternative explicitly in their prompt, and cite the
+spec as the base. Only re-invoke grooming to rewrite the spec when the choice **materially
+changes the spec's structure** (different affected files, a different approach, new development
+steps) such that a downstream agent reading the un-edited spec would be misled. A one-line "the
+team chose X; treat Y as rejected" in the next dispatch is far cheaper than a full grooming
+re-run that only tweaks prose.
+
 **NTH items (COULD_HAVE / NICE_TO_HAVE) — accumulated for user review at Step 10:**
 
 If grooming surfaced any `COULD_HAVE` / `NICE_TO_HAVE` items in `risks[]` or `risk_notes`,
@@ -567,11 +614,22 @@ CI is monitored by DOD L2 Check 5.
 
 **Spawning:**
 - **DOD L2** — invoke the `dod` skill with `layer: "2"` in your context. DOD L2 polls the
-  platform's CI status (`gh pr checks` / `glab ci status`) and extracts failure excerpts.
+  platform's CI status (`gh pr checks` / `glab ci status`) and extracts failure excerpts. The CI
+  wait (`gh pr checks --watch`) can take several minutes; run it as a **background task** so the
+  orchestrator is not idle-blocked while the lead-review and QA agents work — collect the result
+  when it completes, in parallel with the other gates.
 - **Lead Review** — spawn `lead-reviewer` (skip if `effort IN [XS, S]` AND `risk_level == LOW`).
 - **QA** — spawn `qa-engineer` (skip only for purely internal refactors). If `ui_visible: true`
   (the change affects user-visible output) — explicitly instruct the qa-engineer that the browser
   strategy (Strategy B) is the **primary** strategy.
+
+> **Don't make the review/QA agents re-run what CI already runs.** DOD L2 + the platform CI
+> already execute the full test / lint / static-analysis suites on this exact commit. Instruct
+> `lead-reviewer` and `qa-engineer` to **rely on those results** rather than booting the
+> environment to re-run the suites themselves — they should execute code only to verify something
+> specific they cannot determine otherwise (e.g. QA confirming a concrete acceptance-criterion
+> behaviour, or a targeted regression guard). Re-running the whole suite in each gate multiplies
+> environment-boot cost for no new signal.
 
 **Inputs for each:**
 - DOD L2: branch name, base branch, PR URL, `file_scope` (list of files in scope for this issue, from the dispatch plan)

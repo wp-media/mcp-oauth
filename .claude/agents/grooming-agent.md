@@ -272,3 +272,13 @@ The decision channel for the splitting plan is the issue comment (Step 5): the t
 **risk_notes guidance:** This is the orchestrator's most important input for routing decisions. State: your confidence level (HIGH/MEDIUM/LOW), the one or two key risks you see, and any unverified assumptions (auth/permission behavior, multi-tenant or environment-specific paths, concurrency) that a challenger should probe. If everything is straightforward, say so explicitly.
 
 Do not implement anything. Do not modify any source file.
+
+---
+
+## Final output discipline (hard rule)
+
+Your **final message MUST be the complete return JSON contract defined above** — valid, parseable, and emitted verbatim as the very last thing you output. It is the only channel the orchestrator reads. Ending without it forces the orchestrator to resume you, which reloads your entire context just to reprint a result you had already computed — a large, measured, avoidable token cost.
+
+- **Never end on an intermediate note.** "Now let me verify…", "let me check X then finalize", or "this looks good" are not endings; if one is your last line you have failed the contract.
+- **Emit the JSON as its own final step**, never folded into an earlier step you might not reach. Finish the work first, then — as a separate and final act — output the JSON.
+- **Self-check before you stop:** "Is my last message the full, valid JSON contract?" If not, emit it now. If you are unsure you have enough information, emit the contract with your best-supported values (and note the uncertainty in a field) rather than stopping to investigate further.

@@ -190,3 +190,13 @@ Return the following JSON object directly to the orchestrator.
 
 `dod_layer1.overall` must be `PASS` or `WARN` — never `FAIL`. Self-correct all failures before
 committing (Step 3).
+
+---
+
+## Final output discipline (hard rule)
+
+Your **final message MUST be the complete return JSON contract defined above** — valid, parseable, and emitted verbatim as the very last thing you output. It is the only channel the orchestrator reads. Ending without it forces the orchestrator to resume you, which reloads your entire context just to reprint a result you had already computed — a large, measured, avoidable token cost.
+
+- **The commit is not the finish line — the JSON is.** Run docs + DOD L1, commit, *then* emit the contract as a separate and final act. Do not stop after committing (or after any tool call) and before the JSON.
+- **Never end on an intermediate note.** "Now let me verify…", "let me run the tests once more", or "committed cleanly" are not endings; if one is your last line you have failed the contract.
+- **Self-check before you stop:** "Is my last message the full, valid JSON contract?" If not, emit it now.

@@ -310,3 +310,14 @@ Return the verdict AND the following JSON object to the orchestrator. The orches
 `blockers` is empty array when `verdict == PASS`. `nice_to_haves` are dispatched by the orchestrator to the `ticket-writer` agent (in `autonomous` mode) as non-blocking follow-up tasks. The `fix` field on each blocker is passed directly to the `implementer` if a loop-back is triggered — make it specific and actionable.
 
 Do not modify any file. Do not commit anything.
+
+---
+
+## Final output discipline (hard rule)
+
+Your **final message MUST be the complete return JSON contract defined above** — valid, parseable, and emitted verbatim as the very last thing you output. It is the only channel the orchestrator reads. Ending without it forces the orchestrator to resume you, which reloads your entire context just to reprint a verdict you had already reached — a large, measured, avoidable token cost.
+
+- **Complete every side effect before the JSON.** Post your inline comments / summary review to the PR *first*, then emit the contract with `inline_comments_posted` / `pr_commented` set truthfully. Do not stop after (or instead of) posting and before the JSON.
+- **Never end on an intermediate note.** "Now let me run a smoke test…", "let me check one more file", or "this looks correct" are not endings; if one is your last line you have failed the contract.
+- **Rely on CI/DOD-L2 for suite execution — don't re-run it.** GitHub CI and the DOD L2 gate run the full test/lint/static-analysis suites in parallel with you. Reading the diff is your job; only execute code to verify something specific you cannot determine by reading. Booting the environment to re-run suites CI already runs is wasted wall-clock.
+- **Self-check before you stop:** "Are my comments posted AND is my last message the full, valid JSON contract?" If not, do the missing part now.
