@@ -28,15 +28,21 @@ class AddTestTest extends TestCase {
 		parent::set_up();
 
 		if ( ! class_exists( 'WP_Site_Health' ) ) {
-			// ABSPATH is a WordPress-defined runtime constant absent from the
-			// stub packages PHPStan scans, so it statically resolves this path
-			// incorrectly (a false positive, not a real missing file).
 			require_once ABSPATH . 'wp-admin/includes/class-wp-site-health.php'; // @phpstan-ignore requireOnce.fileNotFound
 		}
 	}
 
 	/**
 	 * Registers a real, callable `direct` Site Health test that runs synchronously.
+	 *
+	 * This is a plain, unparameterized test method (no shared fixture-driven data
+	 * provider): HealthCheck::add_test's unit test (above) and this integration test
+	 * exercise genuinely different scenarios with incompatible config/expected shapes
+	 * (array-merging vs. a real Site Health round-trip), and the shared TestCase's
+	 * fixture loader resolves both Unit and Integration suites to the identical
+	 * `Tests/Fixtures/.../AddTestTest.php` path — so they cannot each have their own
+	 * fixture under this file name. See the unit test's fixture for the scenario this
+	 * class name already "owns".
 	 *
 	 * @return void
 	 */
@@ -57,9 +63,6 @@ class AddTestTest extends TestCase {
 		$entry = $tests['direct'][ HealthCheck::TEST_KEY ];
 		$this->assertIsCallable( $entry['test'] );
 
-		// Calling the callable directly (as WP_Site_Health::perform_test() does
-		// for 'direct' tests) proves it runs synchronously: no ajax action, no
-		// REST round-trip, just a plain function call returning the result.
 		$result = call_user_func( $entry['test'] );
 
 		$this->assertIsArray( $result );

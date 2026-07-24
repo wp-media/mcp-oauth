@@ -54,7 +54,7 @@ class HealthCheck {
 	];
 
 	/**
-	 * Status severity, worst first, used to pick the combined result.
+	 * Status severity used to pick the combined result.
 	 *
 	 * @var array<string, int>
 	 */
@@ -83,8 +83,6 @@ class HealthCheck {
 	/**
 	 * Register the combined discovery-document self-check as a `direct` Site Health test.
 	 *
-	 * Hooked to the `site_status_tests` filter.
-	 *
 	 * @param array<string, array<string, array<string, mixed>>> $tests Existing Site Health tests, keyed by bucket ('direct'|'async').
 	 * @return array<string, array<string, array<string, mixed>>> Modified tests.
 	 */
@@ -99,11 +97,6 @@ class HealthCheck {
 
 	/**
 	 * Run the combined discovery-document self-check.
-	 *
-	 * This is the `direct`-test callback: WordPress core calls it
-	 * synchronously while rendering Tools → Site Health, so both loopback
-	 * requests below are bounded (5s timeout each) and their combined result
-	 * is cached in a short-lived transient.
 	 *
 	 * @return array<string, mixed> Site Health test result (label, status, badge, description, actions, test).
 	 */
@@ -133,7 +126,14 @@ class HealthCheck {
 		$failing      = [];
 
 		foreach ( self::DOCUMENTS as $name => $path ) {
-			$status = $this->classify( $this->fetch( home_url( $path ) ) );
+			$response = wp_safe_remote_get(
+				home_url( $path ),
+				[
+					'timeout' => self::FETCH_TIMEOUT,
+				]
+			);
+
+			$status = $this->classify( $response );
 
 			if ( self::STATUS_RANK[ $status ] > self::STATUS_RANK[ $worst_status ] ) {
 				$worst_status = $status;
@@ -161,29 +161,7 @@ class HealthCheck {
 	}
 
 	/**
-	 * Issue the loopback HTTP request for a single discovery document.
-	 *
-	 * Isolated behind this seam (rather than calling wp_remote_get() inline)
-	 * so unit tests can partial-mock the network call.
-	 *
-	 * @param string $url Absolute URL to fetch.
-	 * @return array<string, mixed>|WP_Error The wp_remote_get() response array, or a WP_Error.
-	 */
-	protected function fetch( string $url ) {
-		return wp_remote_get(
-			$url,
-			[
-				'timeout'   => self::FETCH_TIMEOUT,
-				'sslverify' => is_ssl(),
-			]
-		);
-	}
-
-	/**
 	 * Classify a single document's fetch result into a Site Health status.
-	 *
-	 * The single source of truth for the status mapping: any change to how a
-	 * result is classified must happen here, not in a second, drifting copy.
 	 *
 	 * @param array<string, mixed>|WP_Error $response The wp_remote_get() response array, or a WP_Error.
 	 * @return string One of 'good', 'recommended', 'critical'.
@@ -224,10 +202,6 @@ class HealthCheck {
 
 	/**
 	 * Build the Site Health result array for a given combined status.
-	 *
-	 * Builds the common shell once; only `description`/`actions` (and, in the
-	 * short-circuit/good branches, nothing else) vary per branch, so every
-	 * branch returns the exact same structure as before this was consolidated.
 	 *
 	 * @param string   $status  One of 'good', 'recommended', 'critical'.
 	 * @param string[] $failing Display names of the documents that did not report 'good'.
