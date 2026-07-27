@@ -268,6 +268,7 @@ class HandleRequestTest extends TestCase {
 
 				$this->assertStringStartsWith( $get['redirect_uri'], $location );
 				$this->assertSame( $expected['error'], $query['error'] ?? null );
+				$this->assertSame( home_url(), $query['iss'] ?? null );
 
 				if ( array_key_exists( 'state', $expected ) ) {
 					$this->assertSame( $expected['state'], $query['state'] ?? null );
