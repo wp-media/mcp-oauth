@@ -58,6 +58,11 @@ add_filter( 'wpmedia_mcp_oauth_trusted_publishers', function ( array $publishers
 } );
 ```
 
+A CIMD `client_id` URL must be an HTTPS URL served on the default port (443);
+URLs carrying an explicit port (e.g. `https://example.com:8443/client-metadata`)
+are rejected before any fetch. This lets the resolver pin the connection to a
+validated IP as an anti-DNS-rebinding (SSRF) safeguard.
+
 ### Rewrite rules
 
 Rewrite rules are flushed lazily and automatically the first time `init` runs
