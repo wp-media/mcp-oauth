@@ -89,6 +89,7 @@ class ConsentEndpoint {
 					[
 						'error' => 'access_denied',
 						'state' => $state,
+						'iss'   => home_url(),
 					],
 					$redirect_uri
 				)
@@ -127,6 +128,7 @@ class ConsentEndpoint {
 				[
 					'code'  => $auth_code,
 					'state' => $state,
+					'iss'   => home_url(),
 				],
 				$redirect_uri
 			)

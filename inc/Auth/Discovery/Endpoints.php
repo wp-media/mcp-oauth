@@ -135,6 +135,7 @@ class Endpoints {
 				'scopes_supported'                      => [ 'mcp' ],
 				'token_endpoint_auth_methods_supported' => [ 'none' ],
 				'client_id_metadata_document_supported' => true,
+				'authorization_response_iss_parameter_supported' => true,
 			];
 			McpLogger::log( 'DISCOVERY', 'serving authorization-server document', $body );
 			wp_send_json( $body );

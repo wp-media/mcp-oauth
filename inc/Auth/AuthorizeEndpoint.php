@@ -259,7 +259,10 @@ class AuthorizeEndpoint {
 	 */
 	private function send_error( string $redirect_uri, string $error, string $state ): void {
 		if ( '' !== $redirect_uri ) {
-			$params = [ 'error' => $error ];
+			$params = [
+				'error' => $error,
+				'iss'   => home_url(),
+			];
 			if ( '' !== $state ) {
 				$params['state'] = $state;
 			}

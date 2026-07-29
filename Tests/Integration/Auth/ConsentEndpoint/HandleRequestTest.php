@@ -147,6 +147,7 @@ class HandleRequestTest extends TestCase {
 		$query = $this->assertRedirectsTo( $state_data['redirect_uri'], new ConsentEndpoint() );
 
 		$this->assertSame( $config['state'], $query['state'] );
+		$this->assertSame( home_url(), $query['iss'] ?? null );
 
 		if ( null !== $expected['redirect_error'] ) {
 			$this->assertSame( $expected['redirect_error'], $query['error'] );
