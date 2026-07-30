@@ -82,6 +82,10 @@ coarse: a flood of unknown `client_id` URLs can delay a legitimate client whose
 cached document has just expired. Raise the limit on sites that serve many
 distinct MCP clients.
 
+Returning a value below 1 is a deliberate way to block every cache-miss fetch,
+which disables resolution of any new `client_id`; already-cached clients are
+unaffected, since cache hits never consult the budget.
+
 ### Rewrite rules
 
 Rewrite rules are flushed lazily and automatically the first time `init` runs
