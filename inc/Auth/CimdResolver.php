@@ -46,6 +46,21 @@ class CimdResolver {
 	const CACHE_PREFIX = 'mcp_cimd_';
 
 	/**
+	 * Transient key holding the current window's CIMD fetch count.
+	 */
+	const RATE_LIMIT_KEY = 'mcp_cimd_fetch_budget';
+
+	/**
+	 * Maximum cache-miss document fetches allowed per RATE_WINDOW.
+	 */
+	const MAX_FETCHES_PER_WINDOW = 30;
+
+	/**
+	 * Length (seconds) of the fetch-budget window.
+	 */
+	const RATE_WINDOW = MINUTE_IN_SECONDS;
+
+	/**
 	 * Grant types this server supports.
 	 */
 	const SUPPORTED_GRANT_TYPES = [ 'authorization_code', 'refresh_token' ];
@@ -101,6 +116,13 @@ class CimdResolver {
 		$cached = $this->cache_get( $client_id );
 		if ( null !== $cached ) {
 			return $cached;
+		}
+
+		// Fetch budget: consulted only here, on the cache-miss path, so repeat
+		// traffic for an already-resolved client_id is always free (a cache hit
+		// returns above and never touches the counter).
+		if ( ! $this->within_fetch_budget() ) {
+			return null;
 		}
 
 		$fetched = $this->fetch_document( $client_id );
@@ -674,6 +696,57 @@ class CimdResolver {
 		}
 
 		return (int) max( 300, min( $default, DAY_IN_SECONDS ) );
+	}
+
+	/**
+	 * Whether the site is still within its global CIMD fetch budget for the
+	 * current window, consuming one slot from it if so.
+	 *
+	 * Three accepted trade-offs, all deliberate:
+	 *  (a) Shared counter across both trust tiers. One global budget covers
+	 *      trusted and untrusted fetches, so a flood of untrusted client_ids
+	 *      can starve a legitimate trusted-publisher fetch at a cache-expiry
+	 *      moment (that client sees an authorize failure until the window
+	 *      resets). The `wpmedia_mcp_oauth_cimd_fetch_limit` filter lets ops
+	 *      raise the ceiling; a per-tier budget is a follow-up.
+	 *  (b) Non-atomic read-modify-write. get_transient()/set_transient() are
+	 *      not a lock, so under concurrency the effective limit can be
+	 *      exceeded by roughly the number of in-flight fetches. This is a
+	 *      coarse flood-brake, not a precise quota; a precise limiter (atomic
+	 *      INCR on a persistent object cache) is out of scope.
+	 *  (c) TTL is refreshed on every allowed fetch, because the transient API
+	 *      exposes no way to write a value while preserving the remaining
+	 *      TTL. The window therefore slides forward with legitimate traffic;
+	 *      since rejected attempts never write, the brake still releases at
+	 *      most RATE_WINDOW after the last allowed fetch.
+	 *
+	 * @return bool True if a fetch may proceed (and the counter was incremented), false if the budget is exhausted.
+	 */
+	private function within_fetch_budget(): bool {
+		/**
+		 * Filters the maximum number of CIMD document fetches allowed per minute.
+		 *
+		 * The budget is global (one counter for the whole site, all client_ids) and
+		 * is only consumed on a cache miss. Raise it on a site that legitimately
+		 * serves many distinct MCP clients; a value below 1 blocks every cache-miss
+		 * fetch, which effectively disables new client resolution.
+		 *
+		 * @param int $max_fetches_per_window Maximum cache-miss fetches per window. Default 30.
+		 * @return int
+		 */
+		$max = (int) wpm_apply_filters_typed( 'integer', 'wpmedia_mcp_oauth_cimd_fetch_limit', self::MAX_FETCHES_PER_WINDOW );
+
+		$stored = get_transient( self::RATE_LIMIT_KEY );
+		$count  = is_numeric( $stored ) ? (int) $stored : 0;
+
+		if ( $count >= $max ) {
+			McpLogger::log( 'CIMD', 'rejected: fetch rate limit exceeded', [ 'limit' => $max ] );
+			return false;
+		}
+
+		set_transient( self::RATE_LIMIT_KEY, $count + 1, self::RATE_WINDOW );
+
+		return true;
 	}
 
 	/**
