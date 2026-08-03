@@ -16,7 +16,10 @@ use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
  * The DNS-rebinding preflight (connect_and_get_ip()) wraps native cURL calls
  * that cannot run under Brain\Monkey, so it is partial-mocked here: the real
  * resolve()/fetch_document()/is_ip_allowed() logic runs while only the native
- * connect step is stubbed. No real network or cURL call is ever made.
+ * connect step is stubbed. No real network or cURL call is ever made. The
+ * extension_loaded('curl') check is likewise reached only through the
+ * is_curl_available() seam, which is stubbed from config['curl_available'] so
+ * the no-cURL branch is testable without unloading the extension.
  *
  * @covers \WPMedia\MCP\OAuth\Auth\CimdResolver::resolve
  */
@@ -75,14 +78,18 @@ class ResolveTest extends TestCase {
 			$verifier->shouldNotReceive( 'verify' );
 		}
 
-		// Partial mock: only the native-call preflight is stubbed; resolve(),
+		// Partial mock: only the native-call seams are stubbed; resolve(),
 		// fetch_document() and is_ip_allowed() run for real.
-		$resolver = Mockery::mock( CimdResolver::class . '[connect_and_get_ip]', [ $verifier ] );
+		$resolver = Mockery::mock( CimdResolver::class . '[connect_and_get_ip,is_curl_available]', [ $verifier ] );
 		$resolver->shouldAllowMockingProtectedMethods();
 
+		// MUST stay unconditional: a listed partial-mock method with no
+		// expectation returns null (falsy), which would silently push every
+		// fixture case down the cURL-unavailable branch.
+		$resolver->shouldReceive( 'is_curl_available' )->andReturn( (bool) ( $config['curl_available'] ?? true ) );
+
 		if ( $expected['preflight'] ) {
-			// The cURL extension is loaded in the test environment, so the real
-			// extension_loaded('curl') check passes and the preflight branch is
+			// is_curl_available() is stubbed true above, so the preflight branch is
 			// reached; connect_and_get_ip() is stubbed so no real cURL call runs.
 			Functions\when( 'add_action' )->justReturn( true );
 			Functions\when( 'remove_action' )->justReturn( true );
@@ -146,7 +153,7 @@ class ResolveTest extends TestCase {
 			Functions\expect( 'set_transient' )->never()->with( $cache_key, Mockery::any(), Mockery::any() );
 		}
 
-		$this->assertSame( $expected['result'], $resolver->resolve( $config['client_id'] ) );
+		$this->assertSame( $expected['result'], $resolver->resolve( $config['client_id'], $config['allow_untrusted'] ?? false ) );
 	}
 
 	/**
@@ -276,8 +283,12 @@ class ResolveTest extends TestCase {
 			]
 		);
 
-		$resolver = Mockery::mock( CimdResolver::class . '[connect_and_get_ip,build_resolve_pin]', [ $verifier ] );
+		$resolver = Mockery::mock( CimdResolver::class . '[connect_and_get_ip,build_resolve_pin,is_curl_available]', [ $verifier ] );
 		$resolver->shouldAllowMockingProtectedMethods();
+		// Stubbed explicitly so the outcome never depends on whether the test
+		// host's PHP has the cURL extension loaded (an unstubbed listed method
+		// on a partial mock returns null, i.e. "unavailable").
+		$resolver->shouldReceive( 'is_curl_available' )->andReturn( true );
 		$resolver->shouldReceive( 'connect_and_get_ip' )->once()->with( $host, Mockery::any() )->andReturn( $ip );
 		// The pin must be built from the connected IP, not a re-resolved one.
 		$resolver->shouldReceive( 'build_resolve_pin' )->once()->with( $host, $ip )->andReturn( $pin );

@@ -23,6 +23,14 @@ $wpmedia_mcp_oauth_test_happy_record = [
 	'publisher'                  => 'claude',
 ];
 
+$wpmedia_mcp_oauth_test_unverified_record = array_merge(
+	$wpmedia_mcp_oauth_test_happy_record,
+	[
+		'verified'  => false,
+		'publisher' => '',
+	]
+);
+
 return [
 	'testShouldReturnNullForEmptyClientId'                => [
 		'config'   => [
@@ -614,6 +622,115 @@ return [
 			'budget_consumed'         => true,
 			'budget_value'            => 30,
 			'preflight'               => true,
+			'fetch'                   => true,
+			'verify_called'           => true,
+			'cache_set'               => true,
+			'ttl'                     => 7200,
+		],
+	],
+	'testShouldFetchUntrustedHostWhenUntrustedIsAllowed'  => [
+		// #36: the host gate is skipped when the endpoint allows untrusted
+		// providers, so the document is fetched and returned with verified=false.
+		'config'   => [
+			'client_id'       => $wpmedia_mcp_oauth_test_url,
+			'is_trusted_host' => false,
+			'allow_untrusted' => true,
+			'cached'          => null,
+			'status'          => 200,
+			'body'            => json_encode( $wpmedia_mcp_oauth_test_happy_doc ), // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- fixture data loads before WP is bootstrapped; wp_json_encode() is unavailable at this point.
+			'content_type'    => 'application/json',
+			'cache_control'   => 'max-age=7200',
+			'verify_result'   => [
+				'verified'  => false,
+				'publisher' => '',
+			],
+		],
+		'expected' => [
+			'result'                  => $wpmedia_mcp_oauth_test_unverified_record,
+			'is_trusted_host_checked' => true,
+			'cache_checked'           => true,
+			'budget_checked'          => true,
+			'budget_consumed'         => true,
+			'budget_value'            => 1,
+			'preflight'               => true,
+			'fetch'                   => true,
+			'verify_called'           => true,
+			'cache_set'               => true,
+			'ttl'                     => 7200,
+		],
+	],
+	'testShouldRejectUntrustedHostWhenUntrustedIsDisallowed' => [
+		// Mirror of the case above with the filter restored to false: refused
+		// before the cache read, so no fetch and no budget consumption.
+		'config'   => [
+			'client_id'       => $wpmedia_mcp_oauth_test_url,
+			'is_trusted_host' => false,
+			'allow_untrusted' => false,
+			'cached'          => $wpmedia_mcp_oauth_test_unverified_record,
+		],
+		'expected' => [
+			'result'                  => null,
+			'is_trusted_host_checked' => true,
+			'cache_checked'           => false,
+			'budget_checked'          => false,
+			'budget_consumed'         => false,
+			'preflight'               => false,
+			'fetch'                   => false,
+			'verify_called'           => false,
+			'cache_set'               => false,
+		],
+	],
+	'testShouldRejectUntrustedHostWhenCurlIsUnavailable'  => [
+		// #36: without cURL there is no bounded preflight and no CURLOPT_RESOLVE
+		// pin, and no allowlist bounding the target — so an untrusted host is
+		// refused rather than fetched unpinned. Budget is consumed before
+		// fetch_document() is entered, matching every other in-fetch rejection.
+		'config'   => [
+			'client_id'       => $wpmedia_mcp_oauth_test_url,
+			'is_trusted_host' => false,
+			'allow_untrusted' => true,
+			'curl_available'  => false,
+			'cached'          => null,
+		],
+		'expected' => [
+			'result'                  => null,
+			'is_trusted_host_checked' => true,
+			'cache_checked'           => true,
+			'budget_checked'          => true,
+			'budget_consumed'         => true,
+			'budget_value'            => 1,
+			'preflight'               => false,
+			'fetch'                   => false,
+			'verify_called'           => false,
+			'cache_set'               => false,
+		],
+	],
+	'testShouldFetchTrustedHostUnpinnedWhenCurlIsUnavailable' => [
+		// The pre-existing unpinned fallback survives for a trusted host: the
+		// decision keys off host trust, not the filter value. No preflight runs.
+		'config'   => [
+			'client_id'       => $wpmedia_mcp_oauth_test_url,
+			'is_trusted_host' => true,
+			'allow_untrusted' => true,
+			'curl_available'  => false,
+			'cached'          => null,
+			'status'          => 200,
+			'body'            => json_encode( $wpmedia_mcp_oauth_test_happy_doc ), // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- fixture data loads before WP is bootstrapped; wp_json_encode() is unavailable at this point.
+			'content_type'    => 'application/json',
+			'cache_control'   => 'max-age=7200',
+			'verify_result'   => [
+				'verified'  => true,
+				'publisher' => 'claude',
+			],
+		],
+		'expected' => [
+			'result'                  => $wpmedia_mcp_oauth_test_happy_record,
+			'is_trusted_host_checked' => true,
+			'cache_checked'           => true,
+			'budget_checked'          => true,
+			'budget_consumed'         => true,
+			'budget_value'            => 1,
+			'preflight'               => false,
 			'fetch'                   => true,
 			'verify_called'           => true,
 			'cache_set'               => true,

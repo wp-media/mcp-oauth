@@ -168,7 +168,7 @@ class HandleRequestTest extends TestCase {
 	 */
 	public function consentScreenClientProvider(): array {
 		return [
-			'verified publisher'   => [
+			'verified publisher'                  => [
 				'client'   => [
 					'client_id'   => 'https://claude.ai/oauth/client',
 					'client_name' => 'Claude',
@@ -177,10 +177,11 @@ class HandleRequestTest extends TestCase {
 					'publisher'   => 'Anthropic',
 				],
 				'expected' => [
-					'verified_badge_present' => true,
+					'verified_badge_present'     => true,
+					'unverified_warning_present' => false,
 				],
 			],
-			'unverified publisher' => [
+			'unverified publisher'                => [
 				'client'   => [
 					'client_id'   => 'https://example.com/oauth/client',
 					'client_name' => 'Example Client',
@@ -189,7 +190,24 @@ class HandleRequestTest extends TestCase {
 					'publisher'   => '',
 				],
 				'expected' => [
-					'verified_badge_present' => false,
+					'verified_badge_present'     => false,
+					'unverified_warning_present' => true,
+				],
+			],
+			'verified publisher, empty publisher' => [
+				// The badge needs a non-empty publisher name, so neither the badge
+				// nor the warning is rendered: verified === true is what suppresses
+				// the warning, not the presence of a publisher name.
+				'client'   => [
+					'client_id'   => 'https://claude.ai/oauth/client',
+					'client_name' => 'Claude',
+					'client_uri'  => 'https://claude.ai',
+					'verified'    => true,
+					'publisher'   => '',
+				],
+				'expected' => [
+					'verified_badge_present'     => false,
+					'unverified_warning_present' => false,
 				],
 			],
 		];
@@ -231,6 +249,14 @@ class HandleRequestTest extends TestCase {
 			$this->assertStringContainsString( 'Verified publisher: ' . $client['publisher'], $html );
 		} else {
 			$this->assertStringNotContainsString( '<div class="verified-badge">', $html );
+		}
+
+		if ( $expected['unverified_warning_present'] ) {
+			$this->assertStringContainsString( '<div class="unverified-warning">', $html );
+			$this->assertStringContainsString( 'This app is not a verified publisher. Only continue if you trust it.', $html );
+		} else {
+			$this->assertStringNotContainsString( '<div class="unverified-warning">', $html );
+			$this->assertStringNotContainsString( 'not a verified publisher', $html );
 		}
 
 		$this->assertStringContainsString( '<strong>' . $client['client_name'] . '</strong> is requesting access to the MCP tools on <strong>' . $site_name . '</strong> on your behalf.', $html );

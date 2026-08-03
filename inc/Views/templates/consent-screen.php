@@ -84,6 +84,17 @@ declare(strict_types=1);
 			padding: 2px 6px;
 			margin-top: 8px;
 		}
+		.unverified-warning {
+			color: #d63638;
+			background: #fcf0f1;
+			border: 1px solid #d63638;
+			border-radius: 3px;
+			padding: 12px 14px;
+			margin-bottom: 20px;
+			font-size: .8rem;
+			font-weight: 600;
+			line-height: 1.45;
+		}
 		.scope-text {
 			font-size: .875rem;
 			color: #3c434a;
@@ -121,6 +132,12 @@ declare(strict_types=1);
 <body>
 	<div class="consent-card">
 		<h1><?php esc_html_e( 'Authorize access to your site?', 'mcp-oauth' ); ?></h1>
+
+		<?php if ( ! $data['verified'] ) : ?>
+			<div class="unverified-warning">
+				<?php esc_html_e( 'This app is not a verified publisher. Only continue if you trust it.', 'mcp-oauth' ); ?>
+			</div>
+		<?php endif; ?>
 
 		<div class="client-block">
 			<div class="client-name">

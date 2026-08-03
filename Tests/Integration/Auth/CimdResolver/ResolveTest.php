@@ -32,6 +32,8 @@ class ResolveTest extends TestCase {
 
 	const SECOND_TRUSTED_CLIENT_ID = 'https://claude.ai/oauth/mcp-oauth-client-metadata';
 
+	const UNTRUSTED_CLIENT_ID = 'https://untrusted.example/cimd.json';
+
 	/**
 	 * Number of times the faked HTTP fetch was invoked during a test.
 	 *
@@ -51,6 +53,7 @@ class ResolveTest extends TestCase {
 		$this->fetch_calls = 0;
 		delete_transient( CimdResolver::CACHE_PREFIX . md5( self::TRUSTED_CLIENT_ID ) );
 		delete_transient( CimdResolver::CACHE_PREFIX . md5( self::SECOND_TRUSTED_CLIENT_ID ) );
+		delete_transient( CimdResolver::CACHE_PREFIX . md5( self::UNTRUSTED_CLIENT_ID ) );
 		delete_transient( CimdResolver::RATE_LIMIT_KEY );
 	}
 
@@ -63,6 +66,7 @@ class ResolveTest extends TestCase {
 	public function tear_down() {
 		delete_transient( CimdResolver::CACHE_PREFIX . md5( self::TRUSTED_CLIENT_ID ) );
 		delete_transient( CimdResolver::CACHE_PREFIX . md5( self::SECOND_TRUSTED_CLIENT_ID ) );
+		delete_transient( CimdResolver::CACHE_PREFIX . md5( self::UNTRUSTED_CLIENT_ID ) );
 		delete_transient( CimdResolver::RATE_LIMIT_KEY );
 		remove_all_filters( 'pre_http_request' );
 		remove_all_filters( 'wpmedia_mcp_oauth_cimd_fetch_limit' );
@@ -259,15 +263,107 @@ class ResolveTest extends TestCase {
 	}
 
 	/**
+	 * A record cached while untrusted providers were allowed is still refused
+	 * once the filter is flipped back: the host gate runs before the cache read,
+	 * so no cached untrusted record can survive it.
+	 *
+	 * @return void
+	 */
+	public function testShouldRejectCachedUntrustedHostWhenUntrustedNotAllowed(): void {
+		$this->prime_untrusted_cache();
+
+		$resolver = new CimdResolver( new ClaudeClientVerifier() );
+
+		$this->assertNull( $resolver->resolve( self::UNTRUSTED_CLIENT_ID, false ) );
+	}
+
+	/**
+	 * Mirror of the above: with untrusted providers allowed, the same cached
+	 * record is served, without a fetch.
+	 *
+	 * @return void
+	 */
+	public function testShouldServeCachedUntrustedHostWhenUntrustedAllowed(): void {
+		$record = $this->prime_untrusted_cache();
+
+		$resolver = new CimdResolver( new ClaudeClientVerifier() );
+
+		$this->assertSame( $record, $resolver->resolve( self::UNTRUSTED_CLIENT_ID, true ) );
+		$this->assertSame( 0, $this->fetch_calls, 'A cache hit must not fetch.' );
+	}
+
+	/**
+	 * Refuses an untrusted host when cURL is unavailable: there is no bounded
+	 * preflight, no CURLOPT_RESOLVE pin, and no allowlist bounding the target,
+	 * so the unpinned fallback is not offered to that tier.
+	 *
+	 * @return void
+	 */
+	public function testShouldRejectUntrustedHostWhenCurlIsUnavailable(): void {
+		$this->fake_fetch( 'application/json', self::UNTRUSTED_CLIENT_ID );
+
+		$resolver = $this->stubbed_resolver( '93.184.216.34', false );
+
+		$this->assertNull( $resolver->resolve( self::UNTRUSTED_CLIENT_ID, true ) );
+		$this->assertSame( 0, $this->fetch_calls, 'An untrusted host must not be fetched unpinned.' );
+	}
+
+	/**
+	 * The pre-existing unpinned fallback survives for a trusted host when cURL
+	 * is unavailable: the decision keys off host trust, not the filter value.
+	 *
+	 * @return void
+	 */
+	public function testShouldFetchTrustedHostUnpinnedWhenCurlIsUnavailable(): void {
+		$this->fake_fetch( 'application/json' );
+
+		$resolver = $this->stubbed_resolver( null, false );
+
+		$record = $resolver->resolve( self::TRUSTED_CLIENT_ID, true );
+
+		$this->assertIsArray( $record );
+		$this->assertTrue( $record['verified'] );
+		$this->assertSame( 1, $this->fetch_calls );
+	}
+
+	/**
+	 * Primes the transient cache with a valid, unverified record for the
+	 * untrusted client_id, as if it had been resolved while the filter allowed
+	 * untrusted providers.
+	 *
+	 * @return array<string, mixed> The record written to the cache.
+	 */
+	private function prime_untrusted_cache(): array {
+		$record = [
+			'client_id'                  => self::UNTRUSTED_CLIENT_ID,
+			'client_name'                => 'Untrusted App',
+			'client_uri'                 => '',
+			'redirect_uris'              => [ 'https://untrusted.example/callback' ],
+			'grant_types'                => [ 'authorization_code', 'refresh_token' ],
+			'token_endpoint_auth_method' => 'none',
+			'source'                     => 'cimd',
+			'verified'                   => false,
+			'publisher'                  => '',
+		];
+
+		set_transient( CimdResolver::CACHE_PREFIX . md5( self::UNTRUSTED_CLIENT_ID ), $record, MINUTE_IN_SECONDS );
+
+		return $record;
+	}
+
+	/**
 	 * Builds a CimdResolver whose native cURL connect-only preflight is stubbed
 	 * to report a fixed IP, so the DNS-rebinding orchestration can be exercised
 	 * without a real connection.
 	 *
-	 * @param string|null $ip The IP the stubbed preflight reports as connected.
+	 * @param string|null $ip             The IP the stubbed preflight reports as connected.
+	 * @param bool        $curl_available What the is_curl_available() seam reports. The
+	 *                                    extension is always loaded in the test container,
+	 *                                    so the no-cURL branch is only reachable this way.
 	 * @return CimdResolver
 	 */
-	private function stubbed_resolver( ?string $ip ): CimdResolver {
-		return new class( new ClaudeClientVerifier(), $ip ) extends CimdResolver {
+	private function stubbed_resolver( ?string $ip, bool $curl_available = true ): CimdResolver {
+		return new class( new ClaudeClientVerifier(), $ip, $curl_available ) extends CimdResolver {
 
 			/**
 			 * IP the stubbed preflight reports as the connected address.
@@ -277,14 +373,33 @@ class ResolveTest extends TestCase {
 			private $stub_ip;
 
 			/**
+			 * What the is_curl_available() seam reports.
+			 *
+			 * @var bool
+			 */
+			private $stub_curl_available;
+
+			/**
 			 * Sets up the resolver with a stubbed preflight IP.
 			 *
-			 * @param ClaudeClientVerifier $verifier Trusted-publisher verifier.
-			 * @param string|null          $stub_ip  Stubbed connected IP.
+			 * @param ClaudeClientVerifier $verifier            Trusted-publisher verifier.
+			 * @param string|null          $stub_ip             Stubbed connected IP.
+			 * @param bool                 $stub_curl_available Stubbed cURL availability.
 			 */
-			public function __construct( ClaudeClientVerifier $verifier, ?string $stub_ip ) {
+			public function __construct( ClaudeClientVerifier $verifier, ?string $stub_ip, bool $stub_curl_available ) {
 				parent::__construct( $verifier );
-				$this->stub_ip = $stub_ip;
+				$this->stub_ip             = $stub_ip;
+				$this->stub_curl_available = $stub_curl_available;
+			}
+
+			/**
+			 * Reports the configured cURL availability instead of probing the
+			 * extension, which cannot be unloaded in the test container.
+			 *
+			 * @return bool
+			 */
+			protected function is_curl_available(): bool {
+				return $this->stub_curl_available;
 			}
 
 			/**

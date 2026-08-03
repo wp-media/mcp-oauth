@@ -3,6 +3,7 @@ declare( strict_types=1 );
 
 namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\AuthorizeEndpoint;
 
+use ReflectionMethod;
 use RuntimeException;
 use WPDieException;
 use WPMedia\MCP\OAuth\Auth\AuthorizeEndpoint;
@@ -206,6 +207,51 @@ class HandleRequestTest extends TestCase {
 	}
 
 	/**
+	 * Builds the `wp_redirect` filter callback that aborts the redirect by
+	 * throwing, before the `exit` that follows it in production code.
+	 *
+	 * @return callable
+	 */
+	private function throwing_redirect_callback(): callable {
+		return /**
+				* Aborts wp_redirect() before the following exit by throwing.
+				*
+				* @param string $location The redirect target.
+				* @return string Never returns; always throws.
+				*/
+			static function ( $location ) {
+				throw new RuntimeException( 'REDIRECT:' . $location ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- not HTML output; captured and asserted on in-process, never rendered.
+			};
+	}
+
+	/**
+	 * Invokes handle_request() expecting a wp_die(), with the throwing
+	 * `wp_redirect` interceptor installed so a regression that emits a redirect
+	 * instead is reported as a test failure rather than executing the real
+	 * `wp_redirect(); exit;` and terminating the PHPUnit process.
+	 *
+	 * @param AuthorizeEndpoint    $endpoint The endpoint under test.
+	 * @param array<string, mixed> $expected Expected message fragment and response code.
+	 * @return void
+	 */
+	private function expect_die( AuthorizeEndpoint $endpoint, array $expected ): void {
+		$callback = $this->throwing_redirect_callback();
+		add_filter( 'wp_redirect', $callback );
+
+		try {
+			$endpoint->handle_request();
+			$this->fail( 'Expected a WPDieException to be thrown.' );
+		} catch ( WPDieException $exception ) {
+			$this->assertStringContainsString( $expected['message_contains'], $exception->getMessage() );
+			$this->assertSame( $expected['response_code'], $exception->getCode() );
+		} catch ( RuntimeException $exception ) {
+			$this->fail( 'Expected a wp_die(), but a redirect was emitted: ' . $exception->getMessage() );
+		} finally {
+			remove_filter( 'wp_redirect', $callback );
+		}
+	}
+
+	/**
 	 * Invokes handle_request(), intercepting the wp_redirect() call that
 	 * would otherwise be immediately followed by exit.
 	 *
@@ -213,20 +259,11 @@ class HandleRequestTest extends TestCase {
 	 * @return string The redirect location passed to wp_redirect().
 	 */
 	private function capture_redirect( AuthorizeEndpoint $endpoint ): string {
-		$callback =
-			/**
-			 * Aborts wp_redirect() before the following exit by throwing.
-			 *
-			 * @param string $location The redirect target.
-			 * @return string Never returns; always throws.
-			 */
-			static function ( $location ) {
-				throw new RuntimeException( 'REDIRECT:' . $location ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- not HTML output; captured and asserted on in-process, never rendered.
-			};
+		$callback = $this->throwing_redirect_callback();
 
 		// The callback intentionally always throws (to abort before the exit that
 		// follows wp_redirect()), so it never returns a value like a real filter.
-		add_filter( 'wp_redirect', $callback ); // @phpstan-ignore-line
+		add_filter( 'wp_redirect', $callback );
 
 		try {
 			$endpoint->handle_request();
@@ -273,6 +310,39 @@ class HandleRequestTest extends TestCase {
 			$this->install_cimd_document( $get['client_id'], $config['cimd_document'] );
 		}
 
+		// Omitted = the plugin default (untrusted providers allowed).
+		if ( false === ( $config['allow_untrusted'] ?? null ) ) {
+			add_filter( 'wpmedia_mcp_oauth_allow_untrusted_providers', '__return_false' );
+		}
+
+		if ( array_key_exists( 'legacy_allow_untrusted', $config ) ) {
+			$legacy = $config['legacy_allow_untrusted'];
+			add_filter(
+				'rocket_mcp_allow_untrusted_providers',
+				static function () use ( $legacy ) {
+					return $legacy;
+				}
+			);
+		}
+
+		if ( array_key_exists( 'canonical_allow_untrusted', $config ) ) {
+			$canonical = $config['canonical_allow_untrusted'];
+			add_filter(
+				'wpmedia_mcp_oauth_allow_untrusted_providers',
+				static function () use ( $canonical ) {
+					return $canonical;
+				}
+			);
+		}
+
+		if ( $expected['deprecated'] ?? false ) {
+			$this->setExpectedDeprecated( 'rocket_mcp_allow_untrusted_providers' );
+		}
+
+		if ( $expected['incorrect_usage'] ?? false ) {
+			$this->setExpectedIncorrectUsage( 'wpm_apply_filters_typed' );
+		}
+
 		if ( $config['logged_in'] ?? false ) {
 			$user_id = self::factory()->user->create();
 			wp_set_current_user( $user_id );
@@ -282,13 +352,7 @@ class HandleRequestTest extends TestCase {
 
 		switch ( $expected['type'] ) {
 			case 'die':
-				try {
-					$endpoint->handle_request();
-					$this->fail( 'Expected a WPDieException to be thrown.' );
-				} catch ( WPDieException $exception ) {
-					$this->assertStringContainsString( $expected['message_contains'], $exception->getMessage() );
-					$this->assertSame( $expected['response_code'], $exception->getCode() );
-				}
+				$this->expect_die( $endpoint, $expected );
 				break;
 
 			case 'redirect_error':
@@ -329,5 +393,81 @@ class HandleRequestTest extends TestCase {
 				$this->assertSame( $expected['transient'], $transient );
 				break;
 		}
+	}
+
+	/**
+	 * The send_error() path must never emit a pre-consent redirect to an
+	 * unverified client's redirect_uri: that URI comes from a CIMD document anyone can
+	 * publish, and these paths run before login and before consent, so
+	 * redirecting there would make the public authorize endpoint an
+	 * unauthenticated open redirector. It wp_die()s with the bare OAuth error
+	 * code and a 400 instead.
+	 *
+	 * @return void
+	 */
+	public function testShouldDieWithoutRedirectingWhenSendErrorReceivesAnUnverifiedClient(): void {
+		$callback = $this->throwing_redirect_callback();
+		add_filter( 'wp_redirect', $callback );
+
+		try {
+			$this->invoke_send_error( 'https://phish.example/landing', 'unsupported_response_type', 'state-value', false );
+			$this->fail( 'Expected a WPDieException to be thrown.' );
+		} catch ( WPDieException $exception ) {
+			$this->assertSame( 'unsupported_response_type', $exception->getMessage() );
+			$this->assertSame( 400, $exception->getCode() );
+		} catch ( RuntimeException $exception ) {
+			$this->fail( 'Expected a wp_die(), but a redirect was emitted: ' . $exception->getMessage() );
+		} finally {
+			remove_filter( 'wp_redirect', $callback );
+		}
+	}
+
+	/**
+	 * A verified client's pre-consent error response is unchanged: a 302 to its
+	 * own registered redirect_uri carrying error, iss and state.
+	 *
+	 * @return void
+	 */
+	public function testShouldRedirectWhenSendErrorReceivesAVerifiedClient(): void {
+		$callback = $this->throwing_redirect_callback();
+		add_filter( 'wp_redirect', $callback );
+
+		try {
+			$this->invoke_send_error( 'https://client.example/callback', 'unsupported_response_type', 'state-value', true );
+			$this->fail( 'Expected send_error() to redirect.' );
+		} catch ( RuntimeException $exception ) {
+			$location = substr( $exception->getMessage(), strlen( 'REDIRECT:' ) );
+			$query    = $this->query_args( $location );
+
+			$this->assertStringStartsWith( 'https://client.example/callback', $location );
+			$this->assertSame( 'unsupported_response_type', $query['error'] ?? null );
+			$this->assertSame( home_url(), $query['iss'] ?? null );
+			$this->assertSame( 'state-value', $query['state'] ?? null );
+		} finally {
+			remove_filter( 'wp_redirect', $callback );
+		}
+	}
+
+	/**
+	 * Invokes the private send_error() directly, so the open-redirect invariant
+	 * is asserted at the exact method that owns it, independently of which
+	 * handle_request() branch happens to reach it.
+	 *
+	 * @param string $redirect_uri    Destination URI.
+	 * @param string $error           OAuth error code.
+	 * @param string $state           State token.
+	 * @param bool   $client_verified Whether the client is a verified publisher.
+	 * @return void
+	 */
+	private function invoke_send_error( string $redirect_uri, string $error, string $state, bool $client_verified ): void {
+		$method = new ReflectionMethod( AuthorizeEndpoint::class, 'send_error' );
+
+		// PHP < 8.1 requires setAccessible() before invoking a non-public method;
+		// from 8.1 it is a no-op, so we only call it on the older versions.
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible( true );
+		}
+
+		$method->invoke( new AuthorizeEndpoint( $this->make_resolver() ), $redirect_uri, $error, $state, $client_verified );
 	}
 }
