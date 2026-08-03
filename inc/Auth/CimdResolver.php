@@ -46,6 +46,21 @@ class CimdResolver {
 	const CACHE_PREFIX = 'mcp_cimd_';
 
 	/**
+	 * Transient key holding the current window's CIMD fetch count.
+	 */
+	const RATE_LIMIT_KEY = 'mcp_cimd_fetch_budget';
+
+	/**
+	 * Maximum cache-miss document fetches allowed per RATE_WINDOW.
+	 */
+	const MAX_FETCHES_PER_WINDOW = 30;
+
+	/**
+	 * Length (seconds) of the fetch-budget window.
+	 */
+	const RATE_WINDOW = MINUTE_IN_SECONDS;
+
+	/**
 	 * Grant types this server supports.
 	 */
 	const SUPPORTED_GRANT_TYPES = [ 'authorization_code', 'refresh_token' ];
@@ -101,6 +116,11 @@ class CimdResolver {
 		$cached = $this->cache_get( $client_id );
 		if ( null !== $cached ) {
 			return $cached;
+		}
+
+		// Cache-miss path only: a cache hit returns above and never consumes budget.
+		if ( ! $this->within_fetch_budget() ) {
+			return null;
 		}
 
 		$fetched = $this->fetch_document( $client_id );
@@ -674,6 +694,44 @@ class CimdResolver {
 		}
 
 		return (int) max( 300, min( $default, DAY_IN_SECONDS ) );
+	}
+
+	/**
+	 * Whether the site is within its global CIMD fetch budget for the current
+	 * window, consuming one slot if so.
+	 *
+	 * Accepted trade-offs: one counter shared across both trust tiers, so an
+	 * untrusted flood can starve a trusted fetch at cache expiry; a non-atomic
+	 * read-modify-write, so the limit can overshoot by the in-flight count; and a
+	 * TTL refreshed on every allowed fetch, as the transient API cannot preserve
+	 * the remainder. Rejected attempts never write, so the brake releases at most
+	 * RATE_WINDOW after the last allowed fetch.
+	 *
+	 * @return bool True if a fetch may proceed, false if the budget is exhausted.
+	 */
+	private function within_fetch_budget(): bool {
+		/**
+		 * Filters the maximum CIMD document fetches allowed per window.
+		 *
+		 * Consumed only on a cache miss. A value below 1 blocks every cache-miss
+		 * fetch, disabling resolution of new client_ids.
+		 *
+		 * @param int $max_fetches_per_window Maximum cache-miss fetches per window. Default 30.
+		 * @return int
+		 */
+		$max = (int) wpm_apply_filters_typed( 'integer', 'wpmedia_mcp_oauth_cimd_fetch_limit', self::MAX_FETCHES_PER_WINDOW );
+
+		$stored = get_transient( self::RATE_LIMIT_KEY );
+		$count  = is_numeric( $stored ) ? (int) $stored : 0;
+
+		if ( $count >= $max ) {
+			McpLogger::log( 'CIMD', 'rejected: fetch rate limit exceeded', [ 'limit' => $max ] );
+			return false;
+		}
+
+		set_transient( self::RATE_LIMIT_KEY, $count + 1, self::RATE_WINDOW );
+
+		return true;
 	}
 
 	/**

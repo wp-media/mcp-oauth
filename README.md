@@ -63,6 +63,29 @@ URLs carrying an explicit port (e.g. `https://example.com:8443/client-metadata`)
 are rejected before any fetch. This lets the resolver pin the connection to a
 validated IP as an anti-DNS-rebinding (SSRF) safeguard.
 
+### CIMD fetch rate limit
+
+Resolving an unknown `client_id` costs one outbound HTTPS fetch, so the resolver
+keeps a global budget of 30 fetches per minute. Only cache misses count against
+it — an already-resolved `client_id` is served from its transient and is always
+free. When the budget is exhausted, further cache-miss resolutions fail until the
+window resets. Raise (or lower) the ceiling with:
+
+```php
+add_filter( 'wpmedia_mcp_oauth_cimd_fetch_limit', function ( int $max ) {
+	return 100;
+} );
+```
+
+The budget is global rather than per host or per client, so it is deliberately
+coarse: a flood of unknown `client_id` URLs can delay a legitimate client whose
+cached document has just expired. Raise the limit on sites that serve many
+distinct MCP clients.
+
+Returning a value below 1 is a deliberate way to block every cache-miss fetch,
+which disables resolution of any new `client_id`; already-cached clients are
+unaffected, since cache hits never consult the budget.
+
 ### Rewrite rules
 
 Rewrite rules are flushed lazily and automatically the first time `init` runs

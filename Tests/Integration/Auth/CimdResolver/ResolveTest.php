@@ -30,6 +30,8 @@ class ResolveTest extends TestCase {
 
 	const TRUSTED_CLIENT_ID = 'https://claude.ai/oauth/claude-code-client-metadata';
 
+	const SECOND_TRUSTED_CLIENT_ID = 'https://claude.ai/oauth/mcp-oauth-client-metadata';
+
 	/**
 	 * Number of times the faked HTTP fetch was invoked during a test.
 	 *
@@ -38,7 +40,8 @@ class ResolveTest extends TestCase {
 	private $fetch_calls = 0;
 
 	/**
-	 * Clears any cached record for the trusted client_id used below.
+	 * Clears any cached record for the trusted client_id used below, and the
+	 * fetch-budget counter (shared by every test in this class).
 	 *
 	 * @return void
 	 */
@@ -47,16 +50,22 @@ class ResolveTest extends TestCase {
 
 		$this->fetch_calls = 0;
 		delete_transient( CimdResolver::CACHE_PREFIX . md5( self::TRUSTED_CLIENT_ID ) );
+		delete_transient( CimdResolver::CACHE_PREFIX . md5( self::SECOND_TRUSTED_CLIENT_ID ) );
+		delete_transient( CimdResolver::RATE_LIMIT_KEY );
 	}
 
 	/**
-	 * Clears any cached record left behind and removes the HTTP short-circuit.
+	 * Clears any cached record left behind, resets the fetch-budget counter,
+	 * and removes the HTTP short-circuit and any fetch-limit filter override.
 	 *
 	 * @return void
 	 */
 	public function tear_down() {
 		delete_transient( CimdResolver::CACHE_PREFIX . md5( self::TRUSTED_CLIENT_ID ) );
+		delete_transient( CimdResolver::CACHE_PREFIX . md5( self::SECOND_TRUSTED_CLIENT_ID ) );
+		delete_transient( CimdResolver::RATE_LIMIT_KEY );
 		remove_all_filters( 'pre_http_request' );
+		remove_all_filters( 'wpmedia_mcp_oauth_cimd_fetch_limit' );
 
 		parent::tear_down();
 	}
@@ -187,6 +196,69 @@ class ResolveTest extends TestCase {
 	}
 
 	/**
+	 * Rejects a cache-miss fetch once the window's budget is already spent,
+	 * proving no HTTP request is made (AC1, with a real transient).
+	 *
+	 * @return void
+	 */
+	public function testShouldReturnNullWhenFetchBudgetIsExhausted(): void {
+		set_transient( CimdResolver::RATE_LIMIT_KEY, CimdResolver::MAX_FETCHES_PER_WINDOW, MINUTE_IN_SECONDS );
+		$this->fake_fetch( 'application/json' );
+
+		$resolver = $this->stubbed_resolver( '93.184.216.34' );
+
+		$this->assertNull( $resolver->resolve( self::TRUSTED_CLIENT_ID ) );
+		$this->assertSame( 0, $this->fetch_calls, 'An exhausted fetch budget must reject before any HTTP fetch.' );
+	}
+
+	/**
+	 * A second resolve() call for an already-cached client_id never consumes
+	 * the fetch budget (AC2, with a real transient round trip).
+	 *
+	 * @return void
+	 */
+	public function testShouldNotConsumeFetchBudgetWhenServedFromCache(): void {
+		$this->fake_fetch( 'application/json' );
+
+		$resolver = $this->stubbed_resolver( '93.184.216.34' );
+
+		$resolver->resolve( self::TRUSTED_CLIENT_ID );
+		$resolver->resolve( self::TRUSTED_CLIENT_ID );
+
+		$this->assertSame( 1, $this->fetch_calls );
+		$this->assertSame( 1, (int) get_transient( CimdResolver::RATE_LIMIT_KEY ) );
+	}
+
+	/**
+	 * The `wpmedia_mcp_oauth_cimd_fetch_limit` filter overrides the default
+	 * ceiling (AC3): a filtered limit of 1 allows the first distinct cache-miss
+	 * fetch and rejects the second, without a second HTTP call.
+	 *
+	 * @return void
+	 */
+	public function testShouldHonourFilteredFetchLimit(): void {
+		add_filter(
+			'wpmedia_mcp_oauth_cimd_fetch_limit',
+			static function () {
+				return 1;
+			}
+		);
+
+		$this->fake_fetch( 'application/json' );
+		$this->fake_fetch( 'application/json', self::SECOND_TRUSTED_CLIENT_ID );
+
+		$resolver = $this->stubbed_resolver( '93.184.216.34' );
+
+		$first = $resolver->resolve( self::TRUSTED_CLIENT_ID );
+		$this->assertIsArray( $first );
+		$this->assertSame( 1, $this->fetch_calls );
+
+		$second = $resolver->resolve( self::SECOND_TRUSTED_CLIENT_ID );
+		$this->assertNull( $second, 'A distinct client_id is a cache miss, so the spent budget must reject it.' );
+		$this->assertSame( 1, $this->fetch_calls, 'The rejected fetch must not reach the network.' );
+	}
+
+	/**
 	 * Builds a CimdResolver whose native cURL connect-only preflight is stubbed
 	 * to report a fixed IP, so the DNS-rebinding orchestration can be exercised
 	 * without a real connection.
@@ -230,14 +302,15 @@ class ResolveTest extends TestCase {
 
 	/**
 	 * Registers a `pre_http_request` short-circuit that returns a canned CIMD
-	 * document for the trusted client_id, with the given Content-Type header.
+	 * document for the given client_id, with the given Content-Type header.
 	 *
 	 * @param string|null $content_type Content-Type header value, or null to omit it.
+	 * @param string      $client_id    The client_id URL the canned document is built for.
 	 * @return void
 	 */
-	private function fake_fetch( ?string $content_type ): void {
+	private function fake_fetch( ?string $content_type, string $client_id = self::TRUSTED_CLIENT_ID ): void {
 		$doc = [
-			'client_id'                  => self::TRUSTED_CLIENT_ID,
+			'client_id'                  => $client_id,
 			'client_name'                => 'Claude',
 			'redirect_uris'              => [ 'https://claude.ai/api/mcp/auth_callback' ],
 			'grant_types'                => [ 'authorization_code', 'refresh_token' ],
@@ -246,8 +319,8 @@ class ResolveTest extends TestCase {
 
 		add_filter(
 			'pre_http_request',
-			function ( $preempt, $parsed_args, $url ) use ( $doc, $content_type ) {
-				if ( self::TRUSTED_CLIENT_ID !== $url ) {
+			function ( $preempt, $parsed_args, $url ) use ( $doc, $content_type, $client_id ) {
+				if ( $client_id !== $url ) {
 					return $preempt;
 				}
 

@@ -3,6 +3,7 @@ declare( strict_types=1 );
 
 namespace WPMedia\MCP\OAuth\Tests\Unit\Auth\CimdResolver;
 
+use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;
 use Mockery;
 use WPMedia\MCP\OAuth\Auth\CimdResolver;
@@ -31,6 +32,10 @@ class ResolveTest extends TestCase {
 	 */
 	public function testShouldResolveClientAccordingToConfig( array $config, array $expected ): void {
 		$this->stubEscapeFunctions();
+
+		if ( isset( $config['fetch_limit'] ) ) {
+			Filters\expectApplied( 'wpmedia_mcp_oauth_cimd_fetch_limit' )->andReturn( $config['fetch_limit'] );
+		}
 
 		Functions\when( 'wp_parse_url' )->alias( 'parse_url' );
 		Functions\when( 'sanitize_text_field' )->returnArg();
@@ -94,13 +99,25 @@ class ResolveTest extends TestCase {
 
 		$cache_key = CimdResolver::CACHE_PREFIX . md5( $config['client_id'] );
 
+		// Cache read (scoped: the budget counter is read from the same function).
 		if ( $expected['cache_checked'] ) {
-			Functions\expect( 'get_transient' )
-				->once()
-				->with( $cache_key )
-				->andReturn( $config['cached'] ?? null );
+			Functions\expect( 'get_transient' )->once()->with( $cache_key )->andReturn( $config['cached'] ?? null );
 		} else {
-			Functions\expect( 'get_transient' )->never();
+			Functions\expect( 'get_transient' )->never()->with( $cache_key );
+		}
+
+		// Fetch-budget read: only on the cache-miss path.
+		if ( $expected['budget_checked'] ) {
+			Functions\expect( 'get_transient' )->once()->with( CimdResolver::RATE_LIMIT_KEY )->andReturn( $config['fetch_count'] ?? false );
+		} else {
+			Functions\expect( 'get_transient' )->never()->with( CimdResolver::RATE_LIMIT_KEY );
+		}
+
+		// Fetch-budget write: only when the budget allowed the fetch.
+		if ( $expected['budget_consumed'] ) {
+			Functions\expect( 'set_transient' )->once()->with( CimdResolver::RATE_LIMIT_KEY, $expected['budget_value'], CimdResolver::RATE_WINDOW );
+		} else {
+			Functions\expect( 'set_transient' )->never()->with( CimdResolver::RATE_LIMIT_KEY, Mockery::any(), Mockery::any() );
 		}
 
 		if ( $expected['fetch'] ) {
@@ -122,12 +139,11 @@ class ResolveTest extends TestCase {
 			Functions\expect( 'wp_safe_remote_get' )->never();
 		}
 
+		// Document cache write (scoped for the same reason as the reads).
 		if ( $expected['cache_set'] ) {
-			Functions\expect( 'set_transient' )
-				->once()
-				->with( $cache_key, Mockery::type( 'array' ), $expected['ttl'] );
+			Functions\expect( 'set_transient' )->once()->with( $cache_key, Mockery::type( 'array' ), $expected['ttl'] );
 		} else {
-			Functions\expect( 'set_transient' )->never();
+			Functions\expect( 'set_transient' )->never()->with( $cache_key, Mockery::any(), Mockery::any() );
 		}
 
 		$this->assertSame( $expected['result'], $resolver->resolve( $config['client_id'] ) );
