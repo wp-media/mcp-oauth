@@ -263,9 +263,8 @@ class ResolveTest extends TestCase {
 	}
 
 	/**
-	 * A record cached while untrusted providers were allowed is still refused
-	 * once the filter is flipped back: the host gate runs before the cache read,
-	 * so no cached untrusted record can survive it.
+	 * A record cached while untrusted providers were allowed is still refused once
+	 * the filter is flipped back: the host gate runs before the cache read.
 	 *
 	 * @return void
 	 */
@@ -293,9 +292,8 @@ class ResolveTest extends TestCase {
 	}
 
 	/**
-	 * Refuses an untrusted host when cURL is unavailable: there is no bounded
-	 * preflight, no CURLOPT_RESOLVE pin, and no allowlist bounding the target,
-	 * so the unpinned fallback is not offered to that tier.
+	 * Refuses an untrusted host when cURL is unavailable: nothing bounds the
+	 * target, so the unpinned fallback is not offered to that tier.
 	 *
 	 * @return void
 	 */
@@ -327,9 +325,8 @@ class ResolveTest extends TestCase {
 	}
 
 	/**
-	 * Primes the transient cache with a valid, unverified record for the
-	 * untrusted client_id, as if it had been resolved while the filter allowed
-	 * untrusted providers.
+	 * Primes the cache with an unverified record for the untrusted client_id, as
+	 * if resolved while the filter allowed untrusted providers.
 	 *
 	 * @return array<string, mixed> The record written to the cache.
 	 */
@@ -357,9 +354,8 @@ class ResolveTest extends TestCase {
 	 * without a real connection.
 	 *
 	 * @param string|null $ip             The IP the stubbed preflight reports as connected.
-	 * @param bool        $curl_available What the is_curl_available() seam reports. The
-	 *                                    extension is always loaded in the test container,
-	 *                                    so the no-cURL branch is only reachable this way.
+	 * @param bool        $curl_available What the is_curl_available() seam reports; the
+	 *                                    only way to reach the no-cURL branch here.
 	 * @return CimdResolver
 	 */
 	private function stubbed_resolver( ?string $ip, bool $curl_available = true ): CimdResolver {
@@ -393,8 +389,7 @@ class ResolveTest extends TestCase {
 			}
 
 			/**
-			 * Reports the configured cURL availability instead of probing the
-			 * extension, which cannot be unloaded in the test container.
+			 * Reports configured availability; the extension cannot be unloaded here.
 			 *
 			 * @return bool
 			 */

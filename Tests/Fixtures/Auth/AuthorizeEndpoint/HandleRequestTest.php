@@ -41,9 +41,8 @@ return [
 	],
 	'testShouldDieWhenClientCannotBeResolved'              => [
 		'config'   => [
-			// No trusted-publisher registered for this host, and untrusted
-			// providers disallowed, so CimdResolver rejects the client_id before
-			// any fetch is attempted (also why no cimd_document is needed).
+			// Untrusted host + providers disallowed: rejected before any fetch,
+			// which is why no cimd_document is needed.
 			'get'             => [],
 			'allow_untrusted' => false,
 		],
@@ -54,9 +53,8 @@ return [
 		],
 	],
 	'testShouldReachConsentWhenHostIsUntrustedAndUntrustedAllowed' => [
-		// Mirror of the case above under the default filter value: an untrusted
-		// host presenting a valid CIMD document is fetched and reaches consent
-		// with the unverified trust signal in the state transient.
+		// Mirror of the above under the default filter: fetched, and reaches
+		// consent with verified => false in the state transient.
 		'config'   => [
 			'get'           => [],
 			'cimd_document' => [],
@@ -74,8 +72,7 @@ return [
 			// isn't in the allowlist, so ClaudeClientVerifier::verify() fails.
 			'trusted_client_ids' => [],
 			'cimd_document'      => [],
-			// Required for the hard-reject: with the default filter value this
-			// same scenario completes to consent (the mirror case below).
+			// Required for the hard-reject; the default-filter mirror is below.
 			'allow_untrusted'    => false,
 		],
 		'expected' => [
@@ -220,11 +217,9 @@ return [
 		],
 	],
 	'testShouldDieRatherThanRedirectWhenUnverifiedClientSendsUnsupportedResponseType' => [
-		// Open-redirect closure: the redirect_uri is only known from an
-		// unverified, attacker-publishable CIMD document and this branch runs
-		// before login and before consent, so no 302 may be emitted. The test
-		// method installs a throwing wp_redirect interceptor, so a regression
-		// surfaces as a failure rather than a real redirect.
+		// Open-redirect closure: this branch runs before login and consent, so no
+		// 302 to an unverified client's redirect_uri may be emitted. The test
+		// installs a throwing wp_redirect interceptor so a regression fails loudly.
 		'config'   => [
 			'get'           => [
 				'redirect_uri'  => 'https://phish.example/landing',
@@ -253,9 +248,8 @@ return [
 		],
 	],
 	'testShouldAllowUntrustedWhenLegacyFilterReturnsTruthyString' => [
-		// The legacy hook's raw return is (bool)-cast before it reaches the
-		// bool-typed resolve() parameter, so a non-boolean cannot fatal under
-		// strict_types on this public, unauthenticated endpoint.
+		// The legacy hook's return is (bool)-cast before reaching resolve(), so a
+		// non-boolean cannot fatal under strict_types.
 		'config'   => [
 			'get'                    => [],
 			'trusted_host'           => 'good-client.example',
@@ -300,9 +294,8 @@ return [
 		],
 	],
 	'testShouldFallBackToTheSeedWhenCanonicalFilterReturnsNonBoolean' => [
-		// wpm_apply_filters_typed() reports the misuse and returns the SEED,
-		// which the outer (bool) cast has already normalised — so the effective
-		// policy is the seed's value (true) and nothing fatals.
+		// wpm_apply_filters_typed() reports the misuse and returns the seed, which
+		// the outer cast already normalised — effective policy is true, no fatal.
 		'config'   => [
 			'get'                       => [],
 			'trusted_host'              => 'good-client.example',

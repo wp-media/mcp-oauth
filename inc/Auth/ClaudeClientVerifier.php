@@ -4,12 +4,11 @@
  *
  * Client ID Metadata Documents (CIMD) let any client identify itself with an
  * HTTPS URL. The allowlist below is a trust *signal*, not a gate: it decides
- * whether a client is presented as a verified publisher on the consent screen,
- * and it is only a hard gate when `wpmedia_mcp_oauth_allow_untrusted_providers`
- * is filtered to `false`. Claude is the bundled publisher: its official
- * client_id URL, host, and loopback redirect shape are pinned here so that a
- * fetched document can be bound to Claude rather than trusted on its own
- * say-so.
+ * whether a client is shown as a verified publisher, and only becomes a hard
+ * gate when `wpmedia_mcp_oauth_allow_untrusted_providers` is `false`. Claude is
+ * the bundled publisher: its official client_id URL, host, and loopback
+ * redirect shape are pinned here so a fetched document can be bound to Claude
+ * rather than trusted on its own say-so.
  */
 
 declare(strict_types=1);
@@ -56,16 +55,12 @@ class ClaudeClientVerifier {
 	/**
 	 * Whether a client_id URL's host belongs to a trusted publisher.
 	 *
-	 * Gates the (unauthenticated) CIMD network fetch only when
-	 * `wpmedia_mcp_oauth_allow_untrusted_providers` is filtered to `false`. With
-	 * the default (untrusted providers allowed), arbitrary hosts ARE
-	 * dereferenced; the SSRF protection there comes from
-	 * `CimdResolver::is_valid_client_id_url()` plus the connect-only preflight,
-	 * the IP-range validation and the `CURLOPT_RESOLVE` pin in
-	 * `CimdResolver::fetch_document()`, not from this allowlist.
-	 *
-	 * This method additionally decides whether the unpinned no-cURL fetch
-	 * fallback is permitted: trusted hosts only.
+	 * Gates the (unauthenticated) CIMD fetch only when
+	 * `wpmedia_mcp_oauth_allow_untrusted_providers` is `false`. Under the default,
+	 * arbitrary hosts ARE dereferenced and the SSRF protection comes from
+	 * `CimdResolver`'s URL validation, connect-only preflight, IP-range check and
+	 * `CURLOPT_RESOLVE` pin — not from this allowlist. Also decides whether the
+	 * unpinned no-cURL fallback is permitted: trusted hosts only.
 	 *
 	 * @param string $client_id The client_id URL.
 	 * @return bool
@@ -108,9 +103,9 @@ class ClaudeClientVerifier {
 		 *
 		 * Each entry is keyed by an arbitrary publisher slug and must provide:
 		 *  - client_ids (string[]): exact client_id URLs that are trusted for this publisher.
-		 *  - host (string): the hostname client_id URLs must resolve to (defense in depth,
-		 *    also used as the fetch gate when untrusted providers are disallowed, and to
-		 *    decide whether the unpinned no-cURL fetch fallback is permitted).
+		 *  - host (string): the hostname client_id URLs must resolve to (defense in depth;
+		 *    also the fetch gate when untrusted providers are disallowed, and the
+		 *    no-cURL unpinned-fallback gate).
 		 *
 		 * This filter only ever runs server-side, with no request-derived input passed into it
 		 * or influencing its evaluation — it does not accept or process untrusted input. It can

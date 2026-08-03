@@ -80,12 +80,9 @@ class AuthorizeEndpoint {
 			wp_die( esc_html__( 'client_id is required.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
-		// (bool) on the seed: apply_filters_deprecated() returns whatever the legacy
-		// callback returned, and wpm_apply_filters_typed() returns that same
-		// unvalidated seed when its own type check fails. Without the cast a legacy
-		// 'yes'/'0'/null would reach the bool-typed resolve() parameter under
-		// strict_types and fatal with a TypeError on a public, unauthenticated
-		// endpoint. Both casts are therefore load-bearing, not stylistic.
+		// Both casts are load-bearing: wpm_apply_filters_typed() returns this
+		// unvalidated seed when its type check fails, and a non-bool would fatal
+		// against resolve()'s bool parameter under strict_types.
 		$allow_untrusted = (bool) apply_filters_deprecated(
 			'rocket_mcp_allow_untrusted_providers',
 			[ true ],
@@ -96,13 +93,9 @@ class AuthorizeEndpoint {
 		/**
 		 * Filters whether OAuth clients that are not verified trusted publishers may authorize.
 		 *
-		 * When true (default) any client presenting a valid CIMD document may proceed, and the
-		 * consent screen warns the user that the publisher is not verified. When false, the
-		 * pre-1.x hard-reject is restored: unverified clients are refused with a 400.
-		 *
-		 * Must return a real boolean. A non-boolean return is reported via _doing_it_wrong() and
-		 * then coerced with a (bool) cast, so a truthy non-boolean leaves untrusted providers
-		 * ALLOWED and a falsy one blocks them.
+		 * When true (default), any client with a valid CIMD document may proceed and the consent
+		 * screen warns that the publisher is unverified. When false, unverified clients get a 400.
+		 * A non-boolean return is coerced, so a truthy one still allows untrusted providers.
 		 *
 		 * @param bool $allow_untrusted Whether unverified providers may authorize. Default true.
 		 */
@@ -121,8 +114,7 @@ class AuthorizeEndpoint {
 			wp_die( esc_html__( 'This OAuth client is not a verified publisher.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
-		// Audit trail for the newly allowed tier, so an operator can see which
-		// unverified clients were admitted by the filter.
+		// Audit trail for the newly allowed tier.
 		if ( $allow_untrusted && ! $client_verified ) {
 			McpLogger::log( 'AUTHORIZE', 'unverified publisher allowed by filter', [ 'client_id' => $client_id ] );
 		}
@@ -182,8 +174,7 @@ class AuthorizeEndpoint {
 				'client_id'             => $client_id,
 				'client_name'           => (string) ( $client['client_name'] ?? '' ),
 				'client_uri'            => (string) ( $client['client_uri'] ?? '' ),
-				// The real trust signal: false is reachable whenever untrusted
-				// providers are allowed, and drives the consent-screen warning.
+				// Drives the consent-screen badge vs. warning.
 				'verified'              => $client_verified,
 				'publisher'             => (string) ( $client['publisher'] ?? '' ),
 				'redirect_uri'          => $redirect_uri,
@@ -289,20 +280,16 @@ class AuthorizeEndpoint {
 	/**
 	 * Redirect the client to redirect_uri with an error parameter.
 	 *
-	 * Only a client verified against the trusted-publisher allowlist is redirected
-	 * to. An unverified client's redirect_uri comes from a CIMD document anyone can
-	 * publish, and these paths run before is_user_logged_in() and before any
-	 * consent, so redirecting there would turn the public authorize endpoint into
-	 * an unauthenticated open redirector. Unverified clients therefore fall through
-	 * to wp_die(). The post-consent success redirect is unaffected: the user
-	 * explicitly clicks Allow first.
+	 * Only verified clients are redirected to. These paths run before
+	 * is_user_logged_in() and before consent, so redirecting to an unverified
+	 * client's attacker-publishable redirect_uri would make this an unauthenticated
+	 * open redirector; unverified clients fall through to wp_die() instead.
 	 *
 	 * @param string $redirect_uri    Destination URI (may be empty on early failure).
 	 * @param string $error           OAuth error code.
 	 * @param string $state           State token echoed back to the client.
 	 * @param bool   $client_verified Whether the client is a verified trusted publisher.
-	 *                                No default on purpose: PHP then forces every call
-	 *                                site to state it, so none can be silently missed.
+	 *                                No default, so no call site can silently omit it.
 	 * @return void
 	 */
 	private function send_error( string $redirect_uri, string $error, string $state, bool $client_verified ): void {
@@ -314,14 +301,11 @@ class AuthorizeEndpoint {
 			if ( '' !== $state ) {
 				$params['state'] = $state;
 			}
-			wp_redirect( add_query_arg( $params, $redirect_uri ) ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- redirecting to a redirect_uri registered in this client's CIMD document AND matched by redirect_uri_matches(); reached only for clients verified against the trusted-publisher allowlist, so an unverified client can never turn this into an open redirect (it takes the wp_die() path below). Not a same-site redirect, so wp_safe_redirect() is not applicable.
+			wp_redirect( add_query_arg( $params, $redirect_uri ) ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- redirect_uri is registered in the client's CIMD document and matched by redirect_uri_matches(), and this branch is reached only for verified clients. Not a same-site redirect, so wp_safe_redirect() does not apply.
 			exit;
 		}
 
-		// Unverified client (or no validated redirect_uri): never emit a pre-consent
-		// redirect to a URI we only learned from an unverified, attacker-publishable
-		// CIMD document. Falls through to the pre-existing wp_die() branch. The
-		// message is a fixed OAuth error-code literal, not request-controlled data.
+		// $error is a fixed OAuth error-code literal, not request-controlled data.
 		wp_die( esc_html( $error ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 	}
 }

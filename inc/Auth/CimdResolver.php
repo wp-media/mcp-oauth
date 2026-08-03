@@ -85,8 +85,8 @@ class CimdResolver {
 	 * Resolve a client_id URL into a normalised client record.
 	 *
 	 * @param string $client_id       The client_id URL presented by the client.
-	 * @param bool   $allow_untrusted Whether a client_id whose host is not on the trusted-publisher
-	 *                                allowlist may be fetched. Default false (fail-closed).
+	 * @param bool   $allow_untrusted Whether a host outside the trusted-publisher allowlist may
+	 *                                be fetched. Default false (fail-closed).
 	 * @return array<string, mixed>|null Normalised client record, or null on any failure.
 	 */
 	public function resolve( string $client_id, bool $allow_untrusted = false ): ?array {
@@ -105,19 +105,12 @@ class CimdResolver {
 			return null;
 		}
 
-		// Host trust is resolved once and used twice: for the gate below and for
-		// the no-cURL fallback rule in fetch_document(). The endpoint owns the
-		// policy (wpmedia_mcp_oauth_allow_untrusted_providers) and passes it in;
-		// this resolver stays a fail-closed mechanism whose parameter defaults to
-		// false, so a caller that omits it gets the old, gated behaviour.
+		// Used twice: the gate below, and fetch_document()'s no-cURL fallback rule.
 		$is_trusted_host = $this->verifier->is_trusted_host( $client_id );
 
-		// When untrusted providers are disallowed, refuse before anything else:
-		// the authorize endpoint is unauthenticated, so dereferencing an arbitrary
-		// client_id URL would let any caller use this server as an outbound fetch
-		// proxy and pollute the transient cache. This gate deliberately runs
-		// BEFORE cache_get() so a record cached while untrusted providers were
-		// allowed is still refused once the filter is flipped back to false.
+		// Deliberately runs BEFORE cache_get(): a record cached while untrusted
+		// providers were allowed must still be refused once the filter is flipped
+		// back to false.
 		if ( ! $allow_untrusted && ! $is_trusted_host ) {
 			McpLogger::log( 'CIMD', 'rejected: client_id host not in trusted-publisher allowlist', [ 'client_id' => $client_id ] );
 			return null;
@@ -204,22 +197,18 @@ class CimdResolver {
 	 * Fetch a metadata document with SSRF guards and a size cap.
 	 *
 	 * @param string $url             The client_id URL.
-	 * @param bool   $is_trusted_host Whether the URL's host is on the trusted-publisher
-	 *                               allowlist; only a trusted host may fall back to an
-	 *                               unpinned fetch when cURL is unavailable.
+	 * @param bool   $is_trusted_host Whether the host is allowlisted; only a trusted host may
+	 *                               fall back to an unpinned fetch when cURL is unavailable.
 	 * @return array{doc: array<string, mixed>, ttl: int}|null Decoded document and cache TTL, or null on failure.
 	 */
 	private function fetch_document( string $url, bool $is_trusted_host ) {
 		$host = (string) wp_parse_url( $url, PHP_URL_HOST );
 		$pin  = null;
 
-		// DNS-rebinding guard. The cURL extension is required for the preflight
-		// and the CURLOPT_RESOLVE pin. Without it, a trusted host may still be
-		// fetched unpinned (the allowlist itself constrains which host is
-		// contacted), but an untrusted host is refused outright: there would be
-		// neither a bounded preflight, nor a pin, nor an allowlist to bound the
-		// target. There is no raw-DNS fallback, which would reintroduce an
-		// unbounded-timeout lookup.
+		// DNS-rebinding guard, requiring cURL for the preflight and CURLOPT_RESOLVE
+		// pin. Without cURL a trusted host may still be fetched unpinned (the
+		// allowlist bounds the target), but an untrusted host has nothing bounding
+		// it and is refused. No raw-DNS fallback: that lookup is unbounded.
 		if ( $this->is_curl_available() ) {
 			$ip = $this->connect_and_get_ip( $host, $this->filtered_ca_bundle( $url ) );
 			if ( null === $ip ) {
@@ -335,12 +324,10 @@ class CimdResolver {
 	}
 
 	/**
-	 * Whether the cURL extension is available for the preflight and the
-	 * CURLOPT_RESOLVE pin.
+	 * Whether cURL is available for the preflight and CURLOPT_RESOLVE pin.
 	 *
-	 * Isolated in its own method because extension_loaded() cannot be stubbed
-	 * under this project's Brain\Monkey setup (and cannot be turned off in the
-	 * test container), so tests override this seam instead.
+	 * Its own method because extension_loaded() cannot be stubbed under this
+	 * project's Brain\Monkey setup, so tests override this seam instead.
 	 *
 	 * @return bool
 	 */

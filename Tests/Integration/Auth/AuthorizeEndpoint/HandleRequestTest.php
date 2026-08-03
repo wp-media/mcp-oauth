@@ -226,9 +226,8 @@ class HandleRequestTest extends TestCase {
 
 	/**
 	 * Invokes handle_request() expecting a wp_die(), with the throwing
-	 * `wp_redirect` interceptor installed so a regression that emits a redirect
-	 * instead is reported as a test failure rather than executing the real
-	 * `wp_redirect(); exit;` and terminating the PHPUnit process.
+	 * `wp_redirect` interceptor installed so a regression that redirects instead
+	 * fails the test rather than terminating the PHPUnit process.
 	 *
 	 * @param AuthorizeEndpoint    $endpoint The endpoint under test.
 	 * @param array<string, mixed> $expected Expected message fragment and response code.
@@ -396,12 +395,9 @@ class HandleRequestTest extends TestCase {
 	}
 
 	/**
-	 * The send_error() path must never emit a pre-consent redirect to an
-	 * unverified client's redirect_uri: that URI comes from a CIMD document anyone can
-	 * publish, and these paths run before login and before consent, so
-	 * redirecting there would make the public authorize endpoint an
-	 * unauthenticated open redirector. It wp_die()s with the bare OAuth error
-	 * code and a 400 instead.
+	 * Never emits a pre-consent redirect to an unverified client's redirect_uri,
+	 * which comes from a CIMD document anyone can publish. send_error() wp_die()s
+	 * with the bare OAuth error code and a 400 instead.
 	 *
 	 * @return void
 	 */
@@ -449,9 +445,8 @@ class HandleRequestTest extends TestCase {
 	}
 
 	/**
-	 * Invokes the private send_error() directly, so the open-redirect invariant
-	 * is asserted at the exact method that owns it, independently of which
-	 * handle_request() branch happens to reach it.
+	 * Invokes the private send_error() directly, asserting the invariant at the
+	 * method that owns it rather than via a particular handle_request() branch.
 	 *
 	 * @param string $redirect_uri    Destination URI.
 	 * @param string $error           OAuth error code.
@@ -462,8 +457,7 @@ class HandleRequestTest extends TestCase {
 	private function invoke_send_error( string $redirect_uri, string $error, string $state, bool $client_verified ): void {
 		$method = new ReflectionMethod( AuthorizeEndpoint::class, 'send_error' );
 
-		// PHP < 8.1 requires setAccessible() before invoking a non-public method;
-		// from 8.1 it is a no-op, so we only call it on the older versions.
+		// Required before invoking a non-public method on PHP < 8.1; a no-op after.
 		if ( PHP_VERSION_ID < 80100 ) {
 			$method->setAccessible( true );
 		}

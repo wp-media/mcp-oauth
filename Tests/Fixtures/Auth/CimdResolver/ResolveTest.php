@@ -681,10 +681,9 @@ return [
 		],
 	],
 	'testShouldRejectUntrustedHostWhenCurlIsUnavailable'  => [
-		// #36: without cURL there is no bounded preflight and no CURLOPT_RESOLVE
-		// pin, and no allowlist bounding the target — so an untrusted host is
-		// refused rather than fetched unpinned. Budget is consumed before
-		// fetch_document() is entered, matching every other in-fetch rejection.
+		// #36: no cURL means no preflight, no pin and no allowlist bounding the
+		// target, so an untrusted host is refused rather than fetched unpinned.
+		// Budget is consumed before fetch_document(), as with other in-fetch rejects.
 		'config'   => [
 			'client_id'       => $wpmedia_mcp_oauth_test_url,
 			'is_trusted_host' => false,
