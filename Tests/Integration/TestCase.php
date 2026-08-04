@@ -10,7 +10,10 @@ abstract class TestCase extends BaseTestCase {
 	/**
 	 * Configuration for the test data.
 	 *
-	 * @var array{'test_data'?: array<string, mixed>}
+	 * The optional `http` key holds outbound-request mocks consumed by
+	 * WPMedia\PHPUnit\Integration\HttpRequestTrait, keyed by requested URL.
+	 *
+	 * @var array{'test_data'?: array<string, mixed>, 'http'?: array<string, mixed>}
 	 */
 	protected $config;
 
