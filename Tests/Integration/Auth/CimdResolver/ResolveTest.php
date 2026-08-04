@@ -6,6 +6,7 @@ namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\CimdResolver;
 use WPMedia\MCP\OAuth\Auth\CimdResolver;
 use WPMedia\MCP\OAuth\Auth\ClaudeClientVerifier;
 use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
+use WPMedia\PHPUnit\Integration\HttpRequestTrait;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\CimdResolver::resolve
@@ -13,10 +14,18 @@ use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
  * Exercises the real ClaudeClientVerifier and real transient cache. The
  * `is_trusted_host()`/`verify()` allowlist only recognizes the bundled
  * Claude client_id URLs, so the fetch/cache round-trip scenario below uses
- * one of those exact URLs and short-circuits the HTTP call via the core
- * `pre_http_request` filter rather than hitting the network. The remaining
- * scenarios (invalid client_id shape, untrusted host) never reach the fetch
- * step, so no filter is required for them.
+ * one of those exact URLs and short-circuits the HTTP call via the library's
+ * HttpRequestTrait (which hooks `pre_http_request`) rather than hitting the
+ * network. The remaining scenarios (invalid client_id shape, untrusted host)
+ * never reach the fetch step, so no mock is required for them.
+ *
+ * Outbound requests are mocked through HttpRequestTrait: `fake_fetch()`
+ * registers a canned CIMD document under `$this->config['http']`, keyed by the
+ * requested client_id URL, and the trait blocks (and fails) any request the
+ * fixture does not mock, so a test can never silently hit the network. Each
+ * mock is registered as a single-element list, so the trait also tracks how
+ * many times the URL was requested (`fetch_count()`) and blocks any unexpected
+ * second fetch.
  *
  * The connect-only DNS-rebinding preflight (connect_and_get_ip()) makes a raw
  * cURL call that `pre_http_request` cannot intercept, so the resolver returned
@@ -28,43 +37,42 @@ use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
  */
 class ResolveTest extends TestCase {
 
+	use HttpRequestTrait;
+
 	const TRUSTED_CLIENT_ID = 'https://claude.ai/oauth/claude-code-client-metadata';
 
 	const SECOND_TRUSTED_CLIENT_ID = 'https://claude.ai/oauth/mcp-oauth-client-metadata';
 
 	/**
-	 * Number of times the faked HTTP fetch was invoked during a test.
-	 *
-	 * @var int
-	 */
-	private $fetch_calls = 0;
-
-	/**
-	 * Clears any cached record for the trusted client_id used below, and the
-	 * fetch-budget counter (shared by every test in this class).
+	 * Registers the outbound-request mock, and clears any cached record for the
+	 * trusted client_ids used below plus the fetch-budget counter (shared by
+	 * every test in this class).
 	 *
 	 * @return void
 	 */
 	public function set_up() {
 		parent::set_up();
 
-		$this->fetch_calls = 0;
+		$this->setup_http();
+
 		delete_transient( CimdResolver::CACHE_PREFIX . md5( self::TRUSTED_CLIENT_ID ) );
 		delete_transient( CimdResolver::CACHE_PREFIX . md5( self::SECOND_TRUSTED_CLIENT_ID ) );
 		delete_transient( CimdResolver::RATE_LIMIT_KEY );
 	}
 
 	/**
-	 * Clears any cached record left behind, resets the fetch-budget counter,
-	 * and removes the HTTP short-circuit and any fetch-limit filter override.
+	 * Tears down the outbound-request mock (failing the test on any unmocked
+	 * request), clears any cached record left behind, resets the fetch-budget
+	 * counter, and removes any fetch-limit filter override.
 	 *
 	 * @return void
 	 */
 	public function tear_down() {
+		$this->tear_down_http();
+
 		delete_transient( CimdResolver::CACHE_PREFIX . md5( self::TRUSTED_CLIENT_ID ) );
 		delete_transient( CimdResolver::CACHE_PREFIX . md5( self::SECOND_TRUSTED_CLIENT_ID ) );
 		delete_transient( CimdResolver::RATE_LIMIT_KEY );
-		remove_all_filters( 'pre_http_request' );
 		remove_all_filters( 'wpmedia_mcp_oauth_cimd_fetch_limit' );
 
 		parent::tear_down();
@@ -102,7 +110,7 @@ class ResolveTest extends TestCase {
 	 */
 	public function testShouldReturnNullWhenHostIsNotTrusted(): void {
 		// `is_trusted_host()` gates the fetch before any HTTP call is made, so no
-		// `pre_http_request` short-circuit is required here.
+		// outbound-request mock is required here.
 		$resolver = new CimdResolver( new ClaudeClientVerifier() );
 
 		$this->assertNull( $resolver->resolve( 'https://untrusted.example/cimd.json' ) );
@@ -116,23 +124,12 @@ class ResolveTest extends TestCase {
 	 * @return void
 	 */
 	public function testShouldReturnNullWhenPreflightConnectsToPrivateIp(): void {
-		add_filter(
-			'pre_http_request',
-			function ( $preempt, $parsed_args, $url ) {
-				if ( self::TRUSTED_CLIENT_ID === $url ) {
-					++$this->fetch_calls;
-				}
-
-				return $preempt;
-			},
-			10,
-			3
-		);
+		$this->fake_fetch( 'application/json' );
 
 		$resolver = $this->stubbed_resolver( '10.0.0.5' );
 
 		$this->assertNull( $resolver->resolve( self::TRUSTED_CLIENT_ID ) );
-		$this->assertSame( 0, $this->fetch_calls, 'A private connected IP must be rejected before any HTTP fetch.' );
+		$this->assertSame( 0, $this->fetch_count(), 'A private connected IP must be rejected before any HTTP fetch.' );
 	}
 
 	/**
@@ -187,12 +184,12 @@ class ResolveTest extends TestCase {
 		$this->assertSame( 'cimd', $first['source'] );
 		$this->assertTrue( $first['verified'] );
 		$this->assertSame( 'claude', $first['publisher'] );
-		$this->assertSame( 1, $this->fetch_calls );
+		$this->assertSame( 1, $this->fetch_count() );
 
 		$second = $resolver->resolve( self::TRUSTED_CLIENT_ID );
 
 		$this->assertSame( $first, $second );
-		$this->assertSame( 1, $this->fetch_calls, 'The second resolve() call should be served from cache, without a second HTTP fetch.' );
+		$this->assertSame( 1, $this->fetch_count(), 'The second resolve() call should be served from cache, without a second HTTP fetch.' );
 	}
 
 	/**
@@ -208,7 +205,7 @@ class ResolveTest extends TestCase {
 		$resolver = $this->stubbed_resolver( '93.184.216.34' );
 
 		$this->assertNull( $resolver->resolve( self::TRUSTED_CLIENT_ID ) );
-		$this->assertSame( 0, $this->fetch_calls, 'An exhausted fetch budget must reject before any HTTP fetch.' );
+		$this->assertSame( 0, $this->fetch_count(), 'An exhausted fetch budget must reject before any HTTP fetch.' );
 	}
 
 	/**
@@ -225,7 +222,7 @@ class ResolveTest extends TestCase {
 		$resolver->resolve( self::TRUSTED_CLIENT_ID );
 		$resolver->resolve( self::TRUSTED_CLIENT_ID );
 
-		$this->assertSame( 1, $this->fetch_calls );
+		$this->assertSame( 1, $this->fetch_count() );
 		$this->assertSame( 1, (int) get_transient( CimdResolver::RATE_LIMIT_KEY ) );
 	}
 
@@ -251,11 +248,11 @@ class ResolveTest extends TestCase {
 
 		$first = $resolver->resolve( self::TRUSTED_CLIENT_ID );
 		$this->assertIsArray( $first );
-		$this->assertSame( 1, $this->fetch_calls );
+		$this->assertSame( 1, $this->fetch_count( self::TRUSTED_CLIENT_ID ) );
 
 		$second = $resolver->resolve( self::SECOND_TRUSTED_CLIENT_ID );
 		$this->assertNull( $second, 'A distinct client_id is a cache miss, so the spent budget must reject it.' );
-		$this->assertSame( 1, $this->fetch_calls, 'The rejected fetch must not reach the network.' );
+		$this->assertSame( 0, $this->fetch_count( self::SECOND_TRUSTED_CLIENT_ID ), 'The rejected fetch must not reach the network.' );
 	}
 
 	/**
@@ -301,8 +298,13 @@ class ResolveTest extends TestCase {
 	}
 
 	/**
-	 * Registers a `pre_http_request` short-circuit that returns a canned CIMD
-	 * document for the given client_id, with the given Content-Type header.
+	 * Registers a canned CIMD document response for the given client_id under
+	 * `$this->config['http']`, so HttpRequestTrait short-circuits the outbound
+	 * fetch instead of hitting the network.
+	 *
+	 * The response is stored as a single-element list, so the trait tracks the
+	 * per-URL request count (see fetch_count()) and blocks any unexpected second
+	 * fetch to the same URL.
 	 *
 	 * @param string|null $content_type Content-Type header value, or null to omit it.
 	 * @param string      $client_id    The client_id URL the canned document is built for.
@@ -317,33 +319,33 @@ class ResolveTest extends TestCase {
 			'token_endpoint_auth_method' => 'none',
 		];
 
-		add_filter(
-			'pre_http_request',
-			function ( $preempt, $parsed_args, $url ) use ( $doc, $content_type, $client_id ) {
-				if ( $client_id !== $url ) {
-					return $preempt;
-				}
+		$headers = [ 'cache-control' => 'max-age=3600' ];
+		if ( null !== $content_type ) {
+			$headers['content-type'] = $content_type;
+		}
 
-				++$this->fetch_calls;
+		$this->config['http'][ $client_id ] = [
+			[
+				'response' => [
+					'code'    => 200,
+					'message' => 'OK',
+				],
+				'body'     => wp_json_encode( $doc ),
+				'headers'  => $headers,
+				'cookies'  => [],
+				'filename' => null,
+			],
+		];
+	}
 
-				$headers = [ 'cache-control' => 'max-age=3600' ];
-				if ( null !== $content_type ) {
-					$headers['content-type'] = $content_type;
-				}
-
-				return [
-					'response' => [
-						'code'    => 200,
-						'message' => 'OK',
-					],
-					'body'     => wp_json_encode( $doc ),
-					'headers'  => $headers,
-					'cookies'  => [],
-					'filename' => null,
-				];
-			},
-			10,
-			3
-		);
+	/**
+	 * Number of times HttpRequestTrait served a mocked fetch for the given
+	 * client_id during the current test.
+	 *
+	 * @param string $client_id The client_id URL to report the fetch count for.
+	 * @return int
+	 */
+	private function fetch_count( string $client_id = self::TRUSTED_CLIENT_ID ): int {
+		return $this->http_request_counts[ $client_id ] ?? 0;
 	}
 }

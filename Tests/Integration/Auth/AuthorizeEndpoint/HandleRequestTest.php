@@ -9,6 +9,7 @@ use WPMedia\MCP\OAuth\Auth\AuthorizeEndpoint;
 use WPMedia\MCP\OAuth\Auth\ClaudeClientVerifier;
 use WPMedia\MCP\OAuth\Auth\CimdResolver;
 use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
+use WPMedia\PHPUnit\Integration\HttpRequestTrait;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\AuthorizeEndpoint::handle_request
@@ -22,13 +23,17 @@ use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
  * A real `CimdResolver`/`ClaudeClientVerifier` pair is used throughout (no
  * mocking of the collaborator under it): the trusted-publisher allowlist is
  * controlled via the `wpmedia_mcp_oauth_trusted_publishers` filter, and the
- * document fetch is stubbed via `pre_http_request` so no real network fetch
- * ever occurs. `pre_http_request` short-circuits before WP_Http's URL/host
- * validation, so plain `*.example` test hosts are safe to use here.
+ * document fetch is stubbed via the library's HttpRequestTrait (which hooks
+ * `pre_http_request`) so no real network fetch ever occurs. `pre_http_request`
+ * short-circuits before WP_Http's URL/host validation, so plain `*.example`
+ * test hosts are safe to use here. The trait blocks (and fails) any request
+ * the fixture does not mock, so a test can never silently hit the network.
  *
  * @covers \WPMedia\MCP\OAuth\Auth\AuthorizeEndpoint::handle_request
  */
 class HandleRequestTest extends TestCase {
+
+	use HttpRequestTrait;
 
 	/**
 	 * Backup of $_GET so per-test mutations don't leak.
@@ -52,17 +57,22 @@ class HandleRequestTest extends TestCase {
 	public function set_up(): void {
 		parent::set_up();
 
+		$this->setup_http();
+
 		$this->get_backup    = $_GET; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$this->server_backup = $_SERVER;
 		unset( $_SERVER['REMOTE_ADDR'] );
 	}
 
 	/**
-	 * Restores $_GET/$_SERVER.
+	 * Tears down the outbound-request mock (failing on any unmocked request)
+	 * and restores $_GET/$_SERVER.
 	 *
 	 * @return void
 	 */
 	public function tear_down(): void {
+		$this->tear_down_http();
+
 		$_GET    = $this->get_backup; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$_SERVER = $this->server_backup;
 		wp_set_current_user( 0 );
@@ -106,8 +116,9 @@ class HandleRequestTest extends TestCase {
 	}
 
 	/**
-	 * Stubs the CIMD document fetch for a given client_id via `pre_http_request`,
-	 * so `CimdResolver::resolve()` runs its real fetch/validate/verify logic
+	 * Stubs the CIMD document fetch for a given client_id through
+	 * HttpRequestTrait (which hooks `pre_http_request`), so
+	 * `CimdResolver::resolve()` runs its real fetch/validate/verify logic
 	 * without making a real network request.
 	 *
 	 * @param string               $client_id The client_id URL the document is served from.
@@ -126,27 +137,16 @@ class HandleRequestTest extends TestCase {
 			$overrides
 		);
 
-		add_filter(
-			'pre_http_request',
-			static function ( $preempt, $args, $url ) use ( $client_id, $doc ) {
-				if ( $url !== $client_id ) {
-					return $preempt;
-				}
-
-				return [
-					'headers'  => [ 'content-type' => 'application/json' ],
-					'body'     => wp_json_encode( $doc ),
-					'response' => [
-						'code'    => 200,
-						'message' => 'OK',
-					],
-					'cookies'  => [],
-					'filename' => null,
-				];
-			},
-			10,
-			3
-		);
+		$this->config['http'][ $client_id ] = [
+			'headers'  => [ 'content-type' => 'application/json' ],
+			'body'     => wp_json_encode( $doc ),
+			'response' => [
+				'code'    => 200,
+				'message' => 'OK',
+			],
+			'cookies'  => [],
+			'filename' => null,
+		];
 	}
 
 	/**
