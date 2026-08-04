@@ -11,9 +11,8 @@
  * `config.allow_untrusted => false` hooks
  * `wpmedia_mcp_oauth_allow_untrusted_providers` to `__return_false`, restoring
  * the pre-1.x hard gate; omitting the key uses the plugin default (`true`).
- * `config.legacy_allow_untrusted` / `config.canonical_allow_untrusted` hook the
- * deprecated and canonical filters to an arbitrary (possibly non-boolean) return
- * value, paired with `expected.deprecated` / `expected.incorrect_usage`.
+ * `config.canonical_allow_untrusted` hooks that filter to an arbitrary
+ * (possibly non-boolean) return value, paired with `expected.incorrect_usage`.
  */
 
 $wpmedia_mcp_oauth_test_unverified_transient = [
@@ -29,7 +28,7 @@ $wpmedia_mcp_oauth_test_unverified_transient = [
 ];
 
 return [
-	'testShouldDieWhenClientIdIsMissing'                   => [
+	'testShouldDieWhenClientIdIsMissing'                  => [
 		'config'   => [
 			'get' => [ 'client_id' => null ],
 		],
@@ -39,7 +38,7 @@ return [
 			'response_code'    => 400,
 		],
 	],
-	'testShouldDieWhenClientCannotBeResolved'              => [
+	'testShouldDieWhenClientCannotBeResolved'             => [
 		'config'   => [
 			// Untrusted host + providers disallowed: rejected before any fetch,
 			// which is why no cimd_document is needed.
@@ -64,7 +63,7 @@ return [
 			'transient' => $wpmedia_mcp_oauth_test_unverified_transient,
 		],
 	],
-	'testShouldDieWhenClientIsNotVerified'                 => [
+	'testShouldDieWhenClientIsNotVerified'                => [
 		'config'   => [
 			'get'                => [],
 			'trusted_host'       => 'good-client.example',
@@ -93,7 +92,7 @@ return [
 			'transient' => $wpmedia_mcp_oauth_test_unverified_transient,
 		],
 	],
-	'testShouldDieWhenRedirectUriIsMissing'                => [
+	'testShouldDieWhenRedirectUriIsMissing'               => [
 		'config'   => [
 			'get'                => [ 'redirect_uri' => null ],
 			'trusted_host'       => 'good-client.example',
@@ -106,7 +105,7 @@ return [
 			'response_code'    => 400,
 		],
 	],
-	'testShouldDieWhenRedirectUriDoesNotMatchRegistered'   => [
+	'testShouldDieWhenRedirectUriDoesNotMatchRegistered'  => [
 		'config'   => [
 			'get'                => [ 'redirect_uri' => 'https://evil.example/callback' ],
 			'trusted_host'       => 'good-client.example',
@@ -119,7 +118,7 @@ return [
 			'response_code'    => 400,
 		],
 	],
-	'testShouldRedirectWithUnsupportedResponseTypeError'   => [
+	'testShouldRedirectWithUnsupportedResponseTypeError'  => [
 		'config'   => [
 			'get'                => [ 'response_type' => 'token' ],
 			'trusted_host'       => 'good-client.example',
@@ -247,55 +246,9 @@ return [
 			'response_code'    => 400,
 		],
 	],
-	'testShouldAllowUntrustedWhenLegacyFilterReturnsTruthyString' => [
-		// The legacy hook's return is (bool)-cast before reaching resolve(), so a
-		// non-boolean cannot fatal under strict_types.
-		'config'   => [
-			'get'                    => [],
-			'trusted_host'           => 'good-client.example',
-			'trusted_client_ids'     => [],
-			'cimd_document'          => [],
-			'legacy_allow_untrusted' => 'yes',
-		],
-		'expected' => [
-			'type'       => 'login',
-			'deprecated' => true,
-			'transient'  => $wpmedia_mcp_oauth_test_unverified_transient,
-		],
-	],
-	'testShouldRejectUntrustedWhenLegacyFilterReturnsFalsyString' => [
-		'config'   => [
-			'get'                    => [],
-			'trusted_host'           => 'good-client.example',
-			'trusted_client_ids'     => [],
-			'cimd_document'          => [],
-			'legacy_allow_untrusted' => '0',
-		],
-		'expected' => [
-			'type'             => 'die',
-			'deprecated'       => true,
-			'message_contains' => 'not a verified publisher',
-			'response_code'    => 400,
-		],
-	],
-	'testShouldRejectUntrustedWhenLegacyFilterReturnsNull' => [
-		'config'   => [
-			'get'                    => [],
-			'trusted_host'           => 'good-client.example',
-			'trusted_client_ids'     => [],
-			'cimd_document'          => [],
-			'legacy_allow_untrusted' => null,
-		],
-		'expected' => [
-			'type'             => 'die',
-			'deprecated'       => true,
-			'message_contains' => 'not a verified publisher',
-			'response_code'    => 400,
-		],
-	],
 	'testShouldFallBackToTheSeedWhenCanonicalFilterReturnsNonBoolean' => [
-		// wpm_apply_filters_typed() reports the misuse and returns the seed, which
-		// the outer cast already normalised — effective policy is true, no fatal.
+		// wpm_apply_filters_typed() reports the misuse and returns the seed, so a
+		// non-boolean return leaves the effective policy at the default (true).
 		'config'   => [
 			'get'                       => [],
 			'trusted_host'              => 'good-client.example',
@@ -309,7 +262,7 @@ return [
 			'transient'       => $wpmedia_mcp_oauth_test_unverified_transient,
 		],
 	],
-	'testShouldAcceptLoopbackRedirectUriRegardlessOfPort'  => [
+	'testShouldAcceptLoopbackRedirectUriRegardlessOfPort' => [
 		'config'   => [
 			'get'                => [ 'redirect_uri' => 'http://127.0.0.1:51204/cb' ],
 			'trusted_host'       => 'good-client.example',

@@ -79,9 +79,8 @@ add_filter( 'wpmedia_mcp_oauth_allow_untrusted_providers', '__return_false' );
 ```
 
 The filter must return a **real boolean**. A non-boolean return is reported via
-`_doing_it_wrong()` and then coerced with a `(bool)` cast, so a truthy
-non-boolean (e.g. `'no'`) leaves untrusted providers *allowed*, while a falsy one
-(`''`, `0`, `null`) blocks them.
+`_doing_it_wrong()` and discarded in favour of the default (`true`), so a
+misconfigured filter leaves untrusted providers *allowed*.
 
 With the filter set to `false`, a `client_id` whose host is not on the allowlist
 is refused with "Unknown OAuth client." before any fetch — including when a
@@ -89,12 +88,6 @@ record for it is already in the transient cache, since the host check runs befor
 the cache read. A `client_id` on an allowlisted host that does not match the
 publisher's exact `client_ids` is refused with "This OAuth client is not a
 verified publisher."
-
-Prefer the canonical `wpmedia_mcp_oauth_allow_untrusted_providers` name. The
-legacy `rocket_mcp_allow_untrusted_providers` alias is still honoured, but it
-emits a `_deprecated_hook()` notice — on a site with `WP_DEBUG` and
-`display_errors` enabled that notice can emit bytes mid-request on
-`/oauth/authorize` and break the subsequent `wp_redirect()`.
 
 ### CIMD fetch rate limit
 

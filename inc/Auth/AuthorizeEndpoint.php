@@ -80,26 +80,16 @@ class AuthorizeEndpoint {
 			wp_die( esc_html__( 'client_id is required.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
-		// Both casts are load-bearing: wpm_apply_filters_typed() returns this
-		// unvalidated seed when its type check fails, and a non-bool would fatal
-		// against resolve()'s bool parameter under strict_types.
-		$allow_untrusted = (bool) apply_filters_deprecated(
-			'rocket_mcp_allow_untrusted_providers',
-			[ true ],
-			'1.0.1',
-			'wpmedia_mcp_oauth_allow_untrusted_providers'
-		);
-
 		/**
 		 * Filters whether OAuth clients that are not verified trusted publishers may authorize.
 		 *
 		 * When true (default), any client with a valid CIMD document may proceed and the consent
 		 * screen warns that the publisher is unverified. When false, unverified clients get a 400.
-		 * A non-boolean return is coerced, so a truthy one still allows untrusted providers.
+		 * A non-boolean return is discarded in favour of the default.
 		 *
 		 * @param bool $allow_untrusted Whether unverified providers may authorize. Default true.
 		 */
-		$allow_untrusted = (bool) wpm_apply_filters_typed( 'boolean', 'wpmedia_mcp_oauth_allow_untrusted_providers', $allow_untrusted );
+		$allow_untrusted = wpm_apply_filters_typed( 'boolean', 'wpmedia_mcp_oauth_allow_untrusted_providers', true );
 
 		$client = $this->resolver->resolve( $client_id, $allow_untrusted );
 		if ( null === $client ) {

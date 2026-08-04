@@ -314,16 +314,6 @@ class HandleRequestTest extends TestCase {
 			add_filter( 'wpmedia_mcp_oauth_allow_untrusted_providers', '__return_false' );
 		}
 
-		if ( array_key_exists( 'legacy_allow_untrusted', $config ) ) {
-			$legacy = $config['legacy_allow_untrusted'];
-			add_filter(
-				'rocket_mcp_allow_untrusted_providers',
-				static function () use ( $legacy ) {
-					return $legacy;
-				}
-			);
-		}
-
 		if ( array_key_exists( 'canonical_allow_untrusted', $config ) ) {
 			$canonical = $config['canonical_allow_untrusted'];
 			add_filter(
@@ -332,10 +322,6 @@ class HandleRequestTest extends TestCase {
 					return $canonical;
 				}
 			);
-		}
-
-		if ( $expected['deprecated'] ?? false ) {
-			$this->setExpectedDeprecated( 'rocket_mcp_allow_untrusted_providers' );
 		}
 
 		if ( $expected['incorrect_usage'] ?? false ) {
