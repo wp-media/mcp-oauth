@@ -4,7 +4,6 @@ declare( strict_types=1 );
 namespace WPMedia\MCP\OAuth\Tests\Unit\Auth\CimdResolver;
 
 use Mockery;
-use ReflectionMethod;
 use WPMedia\MCP\OAuth\Auth\CimdResolver;
 use WPMedia\MCP\OAuth\Auth\ClaudeClientVerifier;
 use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
@@ -31,8 +30,7 @@ class IsIpAllowedTest extends TestCase {
 		$verifier = Mockery::mock( ClaudeClientVerifier::class );
 		$resolver = new CimdResolver( $verifier );
 
-		$method = new ReflectionMethod( CimdResolver::class, 'is_ip_allowed' );
-		$method->setAccessible( true );
+		$method = $this->get_reflective_method( 'is_ip_allowed', CimdResolver::class );
 
 		$this->assertSame(
 			$expected['allowed'],

@@ -207,10 +207,17 @@ the code):
 - **`@runInSeparateProcess` does not reliably re-isolate `define()`d WP constants**
   (`ABSPATH`/`WPINC`) in the `wp-env` unit setup ("already defined") — prefer an integration
   test for logic that depends on those constants.
-- **`ReflectionMethod` on a non-public method needs `setAccessible(true)` on PHP < 8.1.**
-  From 8.1 it is a no-op (private members are always reflectable), so it is tempting to omit —
-  but omitting it throws `ReflectionException: Trying to invoke private method …` on the 7.4/8.0
-  matrix legs. Guard it: `if ( PHP_VERSION_ID < 80100 ) { $method->setAccessible( true ); }`.
+- **Reflecting non-public members: use the base `TestCase` helpers, never raw
+  `setAccessible()`.** `setAccessible(true)` is required on PHP 7.4/8.0 (omitting it throws
+  `ReflectionException: Trying to invoke private method …` on those matrix legs) but is a no-op
+  on 8.1+ **and deprecated on 8.5** (`ReflectionProperty/Method::setAccessible() … has no effect
+  since PHP 8.1`), which fails the phpcs/phpstan `latest` CI leg. `wp-media/phpunit` (>= v3.1)
+  centralises the version guard, so route through the inherited `TestCaseTrait` helpers instead
+  of calling `setAccessible()` yourself:
+  `$this->get_reflective_method( 'method', Class::class )`,
+  `$this->get_reflective_property( 'prop', $classOrInstance )`,
+  `$this->set_reflective_property( $value, 'prop', $instance )`, and
+  `$this->getNonPublicPropertyValue( 'prop', $class, $instance )`.
 - **Editing byte-literal strings** (e.g. `"\x00\xff…"` prefixes) with automated edit tools is
   error-prone because `\x` escapes get reinterpreted — anchor edits on adjacent escape-free
   lines, or wrap byte literals in a named helper/constant.

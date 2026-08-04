@@ -4,7 +4,6 @@ declare( strict_types=1 );
 namespace WPMedia\MCP\OAuth\Tests\Unit\Auth\CimdResolver;
 
 use Mockery;
-use ReflectionMethod;
 use WPMedia\MCP\OAuth\Auth\CimdResolver;
 use WPMedia\MCP\OAuth\Auth\ClaudeClientVerifier;
 use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
@@ -31,8 +30,7 @@ class BuildResolvePinTest extends TestCase {
 		$verifier = Mockery::mock( ClaudeClientVerifier::class );
 		$resolver = new CimdResolver( $verifier );
 
-		$method = new ReflectionMethod( CimdResolver::class, 'build_resolve_pin' );
-		$method->setAccessible( true );
+		$method = $this->get_reflective_method( 'build_resolve_pin', CimdResolver::class );
 
 		$this->assertSame(
 			$expected['pin'],

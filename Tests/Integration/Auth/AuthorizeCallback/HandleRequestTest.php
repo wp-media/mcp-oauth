@@ -3,7 +3,6 @@ declare( strict_types=1 );
 
 namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\AuthorizeCallback;
 
-use ReflectionMethod;
 use RuntimeException;
 use WPDieException;
 use WPMedia\MCP\OAuth\Auth\AuthorizeCallback;
@@ -208,14 +207,8 @@ class HandleRequestTest extends TestCase {
 		$state       = 'test-state-token';
 		$site_name   = (string) get_bloginfo( 'name' );
 		$callback    = new AuthorizeCallback( new Render() );
-		$method      = new ReflectionMethod( AuthorizeCallback::class, 'output_consent_screen' );
+		$method      = $this->get_reflective_method( 'output_consent_screen', AuthorizeCallback::class );
 		$display_uri = '' !== $client['client_uri'] ? $client['client_uri'] : $client['client_id'];
-
-		// PHP < 8.1 requires setAccessible() before invoking a non-public method;
-		// from 8.1 it is a no-op, so we only call it on the older versions.
-		if ( PHP_VERSION_ID < 80100 ) {
-			$method->setAccessible( true );
-		}
 
 		ob_start();
 		$method->invoke( $callback, $state, $client );
