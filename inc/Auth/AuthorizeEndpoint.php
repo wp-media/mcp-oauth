@@ -80,15 +80,33 @@ class AuthorizeEndpoint {
 			wp_die( esc_html__( 'client_id is required.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
-		$client = $this->resolver->resolve( $client_id );
+		/**
+		 * Filters whether OAuth clients that are not verified trusted publishers may authorize.
+		 *
+		 * When true (default), any client with a valid CIMD document may proceed and the consent
+		 * screen warns that the publisher is unverified. When false, unverified clients get a 400.
+		 * A non-boolean return is discarded in favour of the default.
+		 *
+		 * @param bool $allow_untrusted Whether unverified providers may authorize. Default true.
+		 */
+		$allow_untrusted = wpm_apply_filters_typed( 'boolean', 'wpmedia_mcp_oauth_allow_untrusted_providers', true );
+
+		$client = $this->resolver->resolve( $client_id, $allow_untrusted );
 		if ( null === $client ) {
 			McpLogger::log( 'AUTHORIZE', 'rejected: client_id could not be resolved via CIMD', [ 'client_id' => $client_id ] );
 			wp_die( esc_html__( 'Unknown OAuth client.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
-		if ( empty( $client['verified'] ) ) {
+		$client_verified = ! empty( $client['verified'] );
+
+		if ( ! $allow_untrusted && ! $client_verified ) {
 			McpLogger::log( 'AUTHORIZE', 'rejected: client not a verified publisher', [ 'client_id' => $client_id ] );
 			wp_die( esc_html__( 'This OAuth client is not a verified publisher.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
+		}
+
+		// Audit trail for the newly allowed tier.
+		if ( $allow_untrusted && ! $client_verified ) {
+			McpLogger::log( 'AUTHORIZE', 'unverified publisher allowed by filter', [ 'client_id' => $client_id ] );
 		}
 
 		if ( '' === $redirect_uri ) {
@@ -112,7 +130,7 @@ class AuthorizeEndpoint {
 
 		if ( 'code' !== $response_type ) {
 			McpLogger::log( 'AUTHORIZE', 'rejected: unsupported response_type', [ 'response_type' => $response_type ] );
-			$this->send_error( $redirect_uri, 'unsupported_response_type', $state );
+			$this->send_error( $redirect_uri, 'unsupported_response_type', $state, $client_verified );
 			return;
 		}
 
@@ -125,7 +143,7 @@ class AuthorizeEndpoint {
 					'code_challenge_method' => $code_challenge_method,
 				]
 			);
-			$this->send_error( $redirect_uri, 'invalid_request', $state );
+			$this->send_error( $redirect_uri, 'invalid_request', $state, $client_verified );
 			return;
 		}
 
@@ -134,7 +152,7 @@ class AuthorizeEndpoint {
 		// so the client cannot validate it on return — providing no CSRF protection.
 		if ( '' === $state ) {
 			McpLogger::log( 'AUTHORIZE', 'rejected: state parameter is required' );
-			$this->send_error( $redirect_uri, 'invalid_request', '' );
+			$this->send_error( $redirect_uri, 'invalid_request', '', $client_verified );
 			return;
 		}
 
@@ -146,8 +164,8 @@ class AuthorizeEndpoint {
 				'client_id'             => $client_id,
 				'client_name'           => (string) ( $client['client_name'] ?? '' ),
 				'client_uri'            => (string) ( $client['client_uri'] ?? '' ),
-				// Already guaranteed truthy - the 'client not a verified publisher' guard above exits otherwise.
-				'verified'              => true,
+				// Drives the consent-screen badge vs. warning.
+				'verified'              => $client_verified,
 				'publisher'             => (string) ( $client['publisher'] ?? '' ),
 				'redirect_uri'          => $redirect_uri,
 				'code_challenge'        => $code_challenge,
@@ -252,13 +270,20 @@ class AuthorizeEndpoint {
 	/**
 	 * Redirect the client to redirect_uri with an error parameter.
 	 *
-	 * @param string $redirect_uri Destination URI (may be empty on early failure).
-	 * @param string $error        OAuth error code.
-	 * @param string $state        State token echoed back to the client.
+	 * Only verified clients are redirected to. These paths run before
+	 * is_user_logged_in() and before consent, so redirecting to an unverified
+	 * client's attacker-publishable redirect_uri would make this an unauthenticated
+	 * open redirector; unverified clients fall through to wp_die() instead.
+	 *
+	 * @param string $redirect_uri    Destination URI (may be empty on early failure).
+	 * @param string $error           OAuth error code.
+	 * @param string $state           State token echoed back to the client.
+	 * @param bool   $client_verified Whether the client is a verified trusted publisher.
+	 *                                No default, so no call site can silently omit it.
 	 * @return void
 	 */
-	private function send_error( string $redirect_uri, string $error, string $state ): void {
-		if ( '' !== $redirect_uri ) {
+	private function send_error( string $redirect_uri, string $error, string $state, bool $client_verified ): void {
+		if ( $client_verified && '' !== $redirect_uri ) {
 			$params = [
 				'error' => $error,
 				'iss'   => home_url(),
@@ -266,10 +291,11 @@ class AuthorizeEndpoint {
 			if ( '' !== $state ) {
 				$params['state'] = $state;
 			}
-			wp_redirect( add_query_arg( $params, $redirect_uri ) ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- redirecting to the client's own registered redirect_uri, already validated against the CIMD allowlist; not a same-site redirect.
+			wp_redirect( add_query_arg( $params, $redirect_uri ) ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- redirect_uri is registered in the client's CIMD document and matched by redirect_uri_matches(), and this branch is reached only for verified clients. Not a same-site redirect, so wp_safe_redirect() does not apply.
 			exit;
 		}
 
+		// $error is a fixed OAuth error-code literal, not request-controlled data.
 		wp_die( esc_html( $error ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 	}
 }

@@ -43,9 +43,13 @@ documents return `404`, and the MCP OAuth transport server is not registered.
 
 ### Trusted CIMD publishers
 
-Only clients whose Client ID Metadata Document matches a known, trusted
-publisher can complete the authorization flow. Claude is bundled as a trusted
-publisher by default. Add your own via:
+The trusted-publisher allowlist is a **trust signal**, not a gate. Any client
+presenting a valid Client ID Metadata Document may complete the authorization
+flow; the consent screen tells the user which tier the client is in — a client
+matching a trusted publisher gets a green "Verified publisher" badge, and every
+other client gets a prominent "not a verified publisher" warning above its
+display name so the user makes an informed choice. Claude is bundled as a
+trusted publisher by default. Add your own via:
 
 ```php
 add_filter( 'wpmedia_mcp_oauth_trusted_publishers', function ( array $publishers ) {
@@ -62,6 +66,28 @@ A CIMD `client_id` URL must be an HTTPS URL served on the default port (443);
 URLs carrying an explicit port (e.g. `https://example.com:8443/client-metadata`)
 are rejected before any fetch. This lets the resolver pin the connection to a
 validated IP as an anti-DNS-rebinding (SSRF) safeguard.
+
+### Restoring the trusted-publisher hard gate
+
+Unverified providers are allowed by default (`wpmedia_mcp_oauth_allow_untrusted_providers`
+defaults to `true`). Sites that want only verified publishers to authorize can
+restore the old hard-reject — unverified clients are then refused with a `400`
+before consent:
+
+```php
+add_filter( 'wpmedia_mcp_oauth_allow_untrusted_providers', '__return_false' );
+```
+
+The filter must return a **real boolean**. A non-boolean return is reported via
+`_doing_it_wrong()` and discarded in favour of the default (`true`), so a
+misconfigured filter leaves untrusted providers *allowed*.
+
+With the filter set to `false`, a `client_id` whose host is not on the allowlist
+is refused with "Unknown OAuth client." before any fetch — including when a
+record for it is already in the transient cache, since the host check runs before
+the cache read. A `client_id` on an allowlisted host that does not match the
+publisher's exact `client_ids` is refused with "This OAuth client is not a
+verified publisher."
 
 ### CIMD fetch rate limit
 
@@ -82,6 +108,12 @@ coarse: a flood of unknown `client_id` URLs can delay a legitimate client whose
 cached document has just expired. Raise the limit on sites that serve many
 distinct MCP clients.
 
+Because unverified providers are allowed by default, this shared budget is also
+reachable by anonymous callers: a burst of untrusted `client_id` URLs can briefly
+starve resolution of a trusted client whose cached document expires inside the
+same window. The window self-heals within 60 seconds of the last allowed fetch;
+per-tier counters are tracked as a follow-up.
+
 Returning a value below 1 is a deliberate way to block every cache-miss fetch,
 which disables resolution of any new `client_id`; already-cached clients are
 unaffected, since cache hits never consult the budget.
@@ -101,6 +133,18 @@ are re-flushed on the next request.
   binds every WordPress hook directly (`add_action`/`add_filter`).
 - **`Auth\Router`** — dispatches `/oauth/{authorize,authorize-callback,token,consent,revoke}`
   to their respective endpoint handlers.
+- **`Auth\AuthorizeEndpoint`** — owns the trust *policy*: reads
+  `wpmedia_mcp_oauth_allow_untrusted_providers`, passes it into the resolver,
+  applies the hard-reject when untrusted providers are disallowed, and records the
+  resulting trust signal in the state transient for the consent screen.
+- **`Auth\CimdResolver`** — the fetch *mechanism*: dereferences a `client_id` URL
+  into a normalised client record. `resolve( string $client_id, bool $allow_untrusted = false )`
+  fails closed by default, so a caller that omits the flag keeps the allowlist gate.
+  Carries the SSRF guards (URL-shape validation, connect-only preflight, IP-range
+  validation, `CURLOPT_RESOLVE` pinning) and the global fetch budget.
+- **`Auth\ClaudeClientVerifier`** — the trust *signal*: matches a fetched document
+  against the trusted-publisher allowlist. Drives the consent-screen badge, and is a
+  hard gate only when untrusted providers are disallowed.
 - **`Auth\Discovery\Endpoints`** — serves the `/.well-known/oauth-protected-resource`
   and `/.well-known/oauth-authorization-server` RFC discovery documents.
 - **`Auth\Discovery\HealthCheck`** — a WordPress Site Health `direct` test that

@@ -84,10 +84,12 @@ class CimdResolver {
 	/**
 	 * Resolve a client_id URL into a normalised client record.
 	 *
-	 * @param string $client_id The client_id URL presented by the client.
+	 * @param string $client_id       The client_id URL presented by the client.
+	 * @param bool   $allow_untrusted Whether a host outside the trusted-publisher allowlist may
+	 *                                be fetched. Default false (fail-closed).
 	 * @return array<string, mixed>|null Normalised client record, or null on any failure.
 	 */
-	public function resolve( string $client_id ): ?array {
+	public function resolve( string $client_id, bool $allow_untrusted = false ): ?array {
 		if ( ! $this->is_valid_client_id_url( $client_id ) ) {
 			// is_valid_client_id_url() also rejects any explicit port (see 4.0):
 			// a client_id carrying a non-443 port would silently bypass the
@@ -103,12 +105,13 @@ class CimdResolver {
 			return null;
 		}
 
-		// Gate the network fetch on the trusted-publisher host allowlist. The
-		// authorize endpoint is unauthenticated, so dereferencing an arbitrary
-		// client_id URL would let any caller use this server as an outbound
-		// fetch proxy and pollute the transient cache. Only allowlisted hosts
-		// are ever fetched; exact client_id verification still happens later.
-		if ( ! $this->verifier->is_trusted_host( $client_id ) ) {
+		// Used twice: the gate below, and fetch_document()'s no-cURL fallback rule.
+		$is_trusted_host = $this->verifier->is_trusted_host( $client_id );
+
+		// Deliberately runs BEFORE cache_get(): a record cached while untrusted
+		// providers were allowed must still be refused once the filter is flipped
+		// back to false.
+		if ( ! $allow_untrusted && ! $is_trusted_host ) {
 			McpLogger::log( 'CIMD', 'rejected: client_id host not in trusted-publisher allowlist', [ 'client_id' => $client_id ] );
 			return null;
 		}
@@ -123,7 +126,7 @@ class CimdResolver {
 			return null;
 		}
 
-		$fetched = $this->fetch_document( $client_id );
+		$fetched = $this->fetch_document( $client_id, $is_trusted_host );
 		if ( null === $fetched ) {
 			return null;
 		}
@@ -193,19 +196,20 @@ class CimdResolver {
 	/**
 	 * Fetch a metadata document with SSRF guards and a size cap.
 	 *
-	 * @param string $url The client_id URL.
+	 * @param string $url             The client_id URL.
+	 * @param bool   $is_trusted_host Whether the host is allowlisted; only a trusted host may
+	 *                               fall back to an unpinned fetch when cURL is unavailable.
 	 * @return array{doc: array<string, mixed>, ttl: int}|null Decoded document and cache TTL, or null on failure.
 	 */
-	private function fetch_document( string $url ) {
+	private function fetch_document( string $url, bool $is_trusted_host ) {
 		$host = (string) wp_parse_url( $url, PHP_URL_HOST );
 		$pin  = null;
 
-		// DNS-rebinding guard. The cURL extension is required for the preflight
-		// and the CURLOPT_RESOLVE pin; if it is unavailable the only reachable
-		// caller here is the trusted-host allowlist path, so we fall back to an
-		// unpinned fetch (the allowlist still constrains the host). There is no
-		// raw-DNS fallback, which would reintroduce an unbounded-timeout lookup.
-		if ( extension_loaded( 'curl' ) ) {
+		// DNS-rebinding guard, requiring cURL for the preflight and CURLOPT_RESOLVE
+		// pin. Without cURL a trusted host may still be fetched unpinned (the
+		// allowlist bounds the target), but an untrusted host has nothing bounding
+		// it and is refused. No raw-DNS fallback: that lookup is unbounded.
+		if ( $this->is_curl_available() ) {
 			$ip = $this->connect_and_get_ip( $host, $this->filtered_ca_bundle( $url ) );
 			if ( null === $ip ) {
 				// connect_and_get_ip() already logged the reason.
@@ -231,6 +235,9 @@ class CimdResolver {
 				curl_setopt( $handle, CURLOPT_RESOLVE, [ $this->build_resolve_pin( $host, $ip ) ] ); // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt -- pinning the resolved IP on the underlying cURL handle is the whole point; wp_remote_get() exposes no equivalent.
 			};
 			add_action( 'http_api_curl', $pin );
+		} elseif ( ! $is_trusted_host ) {
+			McpLogger::log( 'CIMD', 'rejected: cURL unavailable, refusing unpinned fetch of an untrusted host', [ 'client_id' => $url ] );
+			return null;
 		}
 
 		try {
@@ -314,6 +321,18 @@ class CimdResolver {
 			'doc' => $doc,
 			'ttl' => $this->parse_ttl( (string) wp_remote_retrieve_header( $response, 'cache-control' ) ),
 		];
+	}
+
+	/**
+	 * Whether cURL is available for the preflight and CURLOPT_RESOLVE pin.
+	 *
+	 * Its own method because extension_loaded() cannot be stubbed under this
+	 * project's Brain\Monkey setup, so tests override this seam instead.
+	 *
+	 * @return bool
+	 */
+	protected function is_curl_available(): bool {
+		return extension_loaded( 'curl' );
 	}
 
 	/**
