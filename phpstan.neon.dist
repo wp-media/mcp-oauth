@@ -9,3 +9,17 @@ parameters:
     scanFiles:
         - vendor/php-stubs/wordpress-stubs/wordpress-stubs.php
         - vendor/php-stubs/wordpress-tests-stubs/wordpress-tests-stubs.php
+    ignoreErrors:
+        # OAuthHttpTransport is deliberately built on the mcp-adapter's
+        # HttpRequestHandler, which the dependency marks @internal. PHPStan 2
+        # now reports cross-package @internal usage; the delegation is by design
+        # and the marker lives in a third-party package we cannot change.
+        -
+            identifier: property.internalClass
+            path: inc/Transport/OAuthHttpTransport.php
+        -
+            identifier: method.internalClass
+            path: inc/Transport/OAuthHttpTransport.php
+        -
+            identifier: new.internalClass
+            path: inc/Transport/OAuthHttpTransport.php
