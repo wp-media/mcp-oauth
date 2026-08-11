@@ -19,7 +19,7 @@ abstract class TestCase extends BaseTestCase {
 	/**
 	 * Configuration for the test data.
 	 *
-	 * @var array{'test_data'?: array<string, mixed>}
+	 * @var array{test_data?: array<string, mixed>, ...}
 	 */
 	protected $config;
 
