@@ -1,0 +1,16 @@
+version: 2
+updates:
+  # Keep the actions used in .github/workflows (and their composite actions)
+  # up to date. Version-pinned refs (tags/SHAs) are bumped; branch refs such as
+  # `@main` are intentionally left untouched by Dependabot.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Roll every actions bump into a single PR to keep review noise down.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
