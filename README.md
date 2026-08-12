@@ -58,6 +58,28 @@ add_filter( 'wpmedia_mcp_oauth_trusted_publishers', function ( array $publishers
 } );
 ```
 
+### Observability
+
+Observability events are **off by default**: the MCP server is created with the
+mcp-adapter's `NullMcpObservabilityHandler`, so nothing is written on a normal
+request. The server registers on `rest_api_init`, so a verbose handler records
+at least one event per REST request, which floods `debug.log` on sites running
+with `WP_DEBUG` and `WP_DEBUG_LOG` enabled.
+
+Opt in to this library's verbose handler (events logged under the
+`[MCP][OBSERVABILITY]` scope) with:
+
+```php
+add_filter( 'wpmedia_mcp_oauth_observability_handler', function () {
+	return \WPMedia\MCP\OAuth\Transport\McpObservabilityHandler::class;
+} );
+```
+
+Any class implementing the adapter's `McpObservabilityHandlerInterface` is
+accepted; anything else falls back to the null handler. Errors are unaffected —
+they still go through `ErrorLogMcpErrorHandler` — and the `TOKEN`/`VALIDATOR`
+log scopes still trace the OAuth flow.
+
 ### Rewrite rules
 
 Rewrite rules are flushed lazily and automatically the first time `init` runs

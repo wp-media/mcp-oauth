@@ -188,7 +188,7 @@ final class Bootstrap {
 	 * @return void
 	 */
 	private function register_transport( Context $context ): void {
-		$registrar = new ServerRegistrar( new Server(), $context );
+		$registrar = new ServerRegistrar( new Server( $context ), $context );
 
 		add_action( 'wp_abilities_api_categories_init', [ $registrar, 'ensure_default_category' ] );
 		add_action( 'wp_abilities_api_init', [ $registrar, 'ensure_shared_abilities_registered' ] );
