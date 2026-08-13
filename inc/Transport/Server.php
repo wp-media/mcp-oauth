@@ -5,8 +5,25 @@ namespace WPMedia\MCP\OAuth\Transport;
 
 use WP\MCP\Core\McpAdapter;
 use WP\MCP\Infrastructure\ErrorHandling\ErrorLogMcpErrorHandler;
+use WPMedia\MCP\OAuth\Context;
 
 class Server {
+	/**
+	 * OAuth server context.
+	 *
+	 * @var Context
+	 */
+	private $context;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Context $context OAuth server context.
+	 */
+	public function __construct( Context $context ) {
+		$this->context = $context;
+	}
+
 	/**
 	 * Register the MCP server with the adapter.
 	 *
@@ -31,7 +48,7 @@ class Server {
 			'v1.0.0',
 			[ OAuthHttpTransport::class ],
 			ErrorLogMcpErrorHandler::class,
-			McpObservabilityHandler::class,
+			$this->context->observability_handler(),
 			[
 				'mcp-adapter/discover-abilities',
 				'mcp-adapter/get-ability-info',
