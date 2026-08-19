@@ -5,7 +5,7 @@ namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\Discovery\HealthCheck;
 
 use WPMedia\MCP\OAuth\Auth\Discovery\HealthCheck;
 use WPMedia\MCP\OAuth\Context;
-use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
+use WPMedia\PHPUnit\Integration\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\Discovery\HealthCheck::add_test

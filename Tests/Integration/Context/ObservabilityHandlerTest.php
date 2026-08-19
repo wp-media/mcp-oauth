@@ -4,7 +4,7 @@ declare( strict_types=1 );
 namespace WPMedia\MCP\OAuth\Tests\Integration\Context;
 
 use WPMedia\MCP\OAuth\Context;
-use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
+use WPMedia\PHPUnit\Integration\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Context::observability_handler

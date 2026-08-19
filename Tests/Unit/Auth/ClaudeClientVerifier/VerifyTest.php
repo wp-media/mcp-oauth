@@ -6,7 +6,7 @@ namespace WPMedia\MCP\OAuth\Tests\Unit\Auth;
 use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;
 use WPMedia\MCP\OAuth\Auth\ClaudeClientVerifier;
-use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
+use WPMedia\PHPUnit\Unit\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\ClaudeClientVerifier::verify

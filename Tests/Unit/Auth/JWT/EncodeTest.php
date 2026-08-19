@@ -5,7 +5,7 @@ namespace WPMedia\MCP\OAuth\Tests\Unit\Auth\JWT;
 
 use Brain\Monkey\Functions;
 use WPMedia\MCP\OAuth\Auth\JWT;
-use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
+use WPMedia\PHPUnit\Unit\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\JWT::encode

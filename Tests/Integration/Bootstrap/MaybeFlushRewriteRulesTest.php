@@ -7,7 +7,7 @@ use ReflectionClass;
 use WPMedia\MCP\OAuth\Bootstrap;
 use WPMedia\MCP\OAuth\Context;
 use WPMedia\MCP\OAuth\Auth\Rewrite;
-use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
+use WPMedia\PHPUnit\Integration\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Bootstrap::maybe_flush_rewrite_rules
