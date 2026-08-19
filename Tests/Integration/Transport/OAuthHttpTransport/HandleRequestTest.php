@@ -9,7 +9,7 @@ use WP\MCP\Core\McpServer;
 use WP\MCP\Transport\Infrastructure\McpTransportContext;
 use WPMedia\MCP\OAuth\Auth\JWT;
 use WPMedia\MCP\OAuth\Auth\SecretManager;
-use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
+use WPMedia\PHPUnit\Integration\TestCase;
 use WPMedia\MCP\OAuth\Transport\OAuthHttpTransport;
 
 /**

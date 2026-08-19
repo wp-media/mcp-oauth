@@ -7,7 +7,7 @@ use Brain\Monkey\Functions;
 use Mockery;
 use WPMedia\MCP\OAuth\Auth\Discovery\Endpoints;
 use WPMedia\MCP\OAuth\Context;
-use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
+use WPMedia\PHPUnit\Unit\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\Discovery\Endpoints::add_rewrite_rules

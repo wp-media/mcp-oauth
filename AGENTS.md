@@ -133,15 +133,17 @@ the CI matrix.
   (Brain\Monkey + Mockery); anything that touches WordPress → **integration**. Write both for
   the same method only when it has genuinely distinct pure-logic and WP-integrated behaviour
   worth isolating — not by default.
-- **Extend the project base `TestCase`, not the framework class directly:**
-  - Unit: extend `WPMedia\MCP\OAuth\Tests\Unit\TestCase`
-    (→ `WPMedia\PHPUnit\Unit\TestCase`; Brain\Monkey + Mockery).
-  - Integration: extend `WPMedia\MCP\OAuth\Tests\Integration\TestCase`
-    (→ `WPMedia\PHPUnit\Integration\TestCase`, which builds on `WP_UnitTestCase`).
+- **Extend the wp-media/phpunit framework base `TestCase` directly:**
+  - Unit: extend `WPMedia\PHPUnit\Unit\TestCase` (Brain\Monkey + Mockery).
+  - Integration: extend `WPMedia\PHPUnit\Integration\TestCase` (builds on `WP_UnitTestCase`).
     Do **not** extend `WP_UnitTestCase` directly.
+  - There are no project-local base `TestCase` wrappers: the framework bases pull in
+    `WPMedia\PHPUnit\TestCaseTrait` (which provides `configTestData()`), so a local subclass added
+    no value and was removed.
 - **Naming:** test methods and their fixture keys follow
   `testShould{DoSomething}When{Condition}` (e.g. `testShouldRejectClientWhenPortIsExplicit`).
-- Fixtures return `['config' => …, 'expected' => …]`, consumed via `@dataProvider configTestData` on the project base `TestCase`.
+- Fixtures return `['config' => …, 'expected' => …]`, consumed via `@dataProvider configTestData`
+  (provided by `WPMedia\PHPUnit\TestCaseTrait` on the framework base `TestCase`).
 
 ### Labels
 

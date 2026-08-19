@@ -6,7 +6,7 @@ namespace WPMedia\MCP\OAuth\Tests\Unit\Auth\SecretManager;
 use Brain\Monkey\Functions;
 use Mockery;
 use WPMedia\MCP\OAuth\Auth\SecretManager;
-use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
+use WPMedia\PHPUnit\Unit\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\SecretManager::get_secret
