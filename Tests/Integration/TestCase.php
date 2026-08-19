@@ -3,58 +3,14 @@ declare( strict_types=1 );
 
 namespace WPMedia\MCP\OAuth\Tests\Integration;
 
-use ReflectionObject;
 use WPMedia\PHPUnit\Integration\TestCase as BaseTestCase;
 
+/**
+ * Shared base class for integration tests.
+ *
+ * The test-data config layer (`configTestData()` / `loadTestDataConfig()`, used as a data
+ * provider by the per-method tests) lives in `WPMedia\PHPUnit\TestCaseTrait` as of
+ * wp-media/phpunit v3.3, so it is inherited here rather than redefined.
+ */
 abstract class TestCase extends BaseTestCase {
-	/**
-	 * Configuration for the test data.
-	 *
-	 * @var array{test_data?: array<string, mixed>, ...}
-	 */
-	protected $config;
-
-	/**
-	 * Setup method for the test case.
-	 *
-	 * @return void
-	 */
-	public function set_up() {
-		parent::set_up();
-
-		if ( empty( $this->config ) ) {
-			$this->loadTestDataConfig();
-		}
-	}
-
-	/**
-	 * Get the test data configuration.
-	 *
-	 * @return array<string, mixed>
-	 */
-	public function configTestData(): array {
-		if ( empty( $this->config ) ) {
-			$this->loadTestDataConfig();
-		}
-
-		return isset( $this->config['test_data'] )
-			? $this->config['test_data']
-			: $this->config;
-	}
-
-	/**
-	 * Load test data configuration.
-	 *
-	 * @return void
-	 */
-	protected function loadTestDataConfig(): void {
-		$obj      = new ReflectionObject( $this );
-		$filename = $obj->getFileName();
-
-		if ( false === $filename ) {
-			return;
-		}
-
-		$this->config = $this->getTestData( dirname( $filename ), basename( $filename, '.php' ) );
-	}
 }
