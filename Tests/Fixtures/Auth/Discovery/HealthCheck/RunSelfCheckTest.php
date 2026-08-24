@@ -135,7 +135,7 @@ return [
 			'status' => 'recommended',
 		],
 	],
-	'testShouldReportCriticalWhenStatusIs404AndNoWordPressHeaderPresent' => [
+	'testShouldReportRecommendedWithAcmeGuidanceWhenStatusIs404AndNoWordPressHeaderPresent' => [
 		'config'   => [
 			'is_enabled'          => true,
 			'permalink_structure' => '/%postname%/',
@@ -150,8 +150,8 @@ return [
 			],
 		],
 		'expected' => [
-			'status'                   => 'critical',
-			'description_contains'     => 'oauth-protected-resource',
+			'status'                   => 'recommended',
+			'description_contains'     => 'acme-challenge',
 			'description_not_contains' => 'oauth-authorization-server',
 		],
 	],

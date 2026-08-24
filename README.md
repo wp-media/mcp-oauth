@@ -133,10 +133,12 @@ manages is exactly what causes permission/ownership failures on other
 plugins, e.g. the WooCommerce Stripe gateway's abandoned attempt at the same
 thing). It also ships a Site Health self-check (`Auth\Discovery\HealthCheck`)
 that surfaces a "MCP OAuth discovery documents" test under **Tools → Site
-Health → Status**, which flags this exact failure mode with a `critical`
+Health → Status**, which flags this exact failure mode with a `recommended`
 status when it detects the fingerprint of the confirmed bug (a bare 404 with
-no WordPress-originated response header). The only real fix is a server-config
-change, applied by whoever controls the host/vhost:
+no WordPress-originated response header). The discovery documents are an
+optional MCP feature, so this is deliberately kept below `critical` to avoid
+raising a red alert for a non-blocking misconfiguration. The only real fix is a
+server-config change, applied by whoever controls the host/vhost:
 
 ### Apache
 
