@@ -19,7 +19,6 @@ namespace WPMedia\MCP\OAuth\Auth\Discovery;
 
 use WP_Error;
 use WPMedia\MCP\OAuth\Context;
-use WPMedia\MCP\OAuth\Logging\McpLogger;
 
 class HealthCheck {
 
@@ -143,15 +142,6 @@ class HealthCheck {
 				$failing[] = $name;
 			}
 		}
-
-		McpLogger::log(
-			'DISCOVERY',
-			'self-check result',
-			[
-				'status'  => $worst_status,
-				'failing' => $failing,
-			]
-		);
 
 		$result = $this->build_result( $worst_status, $failing );
 
