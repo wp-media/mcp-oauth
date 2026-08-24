@@ -7,7 +7,7 @@ use Brain\Monkey\Functions;
 use Mockery;
 use WPMedia\MCP\OAuth\Auth\Discovery\HealthCheck;
 use WPMedia\MCP\OAuth\Context;
-use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
+use WPMedia\PHPUnit\Unit\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\Discovery\HealthCheck::run_self_check

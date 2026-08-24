@@ -5,7 +5,7 @@ namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\Discovery\Endpoints;
 
 use WPMedia\MCP\OAuth\Auth\Discovery\Endpoints;
 use WPMedia\MCP\OAuth\Context;
-use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
+use WPMedia\PHPUnit\Integration\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\Discovery\Endpoints::handle_request

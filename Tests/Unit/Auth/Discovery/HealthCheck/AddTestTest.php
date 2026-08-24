@@ -6,7 +6,7 @@ namespace WPMedia\MCP\OAuth\Tests\Unit\Auth\Discovery\HealthCheck;
 use Mockery;
 use WPMedia\MCP\OAuth\Auth\Discovery\HealthCheck;
 use WPMedia\MCP\OAuth\Context;
-use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
+use WPMedia\PHPUnit\Unit\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\Discovery\HealthCheck::add_test

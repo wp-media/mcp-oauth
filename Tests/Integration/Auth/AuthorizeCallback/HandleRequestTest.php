@@ -6,7 +6,7 @@ namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\AuthorizeCallback;
 use RuntimeException;
 use WPDieException;
 use WPMedia\MCP\OAuth\Auth\AuthorizeCallback;
-use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
+use WPMedia\PHPUnit\Integration\TestCase;
 use WPMedia\MCP\OAuth\Views\Render;
 
 /**

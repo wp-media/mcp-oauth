@@ -5,8 +5,8 @@ namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\CimdResolver;
 
 use WPMedia\MCP\OAuth\Auth\CimdResolver;
 use WPMedia\MCP\OAuth\Auth\ClaudeClientVerifier;
-use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
 use WPMedia\PHPUnit\Integration\HttpRequestTrait;
+use WPMedia\PHPUnit\Integration\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\CimdResolver::resolve

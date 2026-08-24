@@ -6,7 +6,7 @@ namespace WPMedia\MCP\OAuth\Tests\Unit\Auth\CimdResolver;
 use Mockery;
 use WPMedia\MCP\OAuth\Auth\CimdResolver;
 use WPMedia\MCP\OAuth\Auth\ClaudeClientVerifier;
-use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
+use WPMedia\PHPUnit\Unit\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\CimdResolver::build_resolve_pin

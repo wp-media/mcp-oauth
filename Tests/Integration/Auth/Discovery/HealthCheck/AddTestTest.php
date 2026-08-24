@@ -5,7 +5,7 @@ namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\Discovery\HealthCheck;
 
 use WPMedia\MCP\OAuth\Auth\Discovery\HealthCheck;
 use WPMedia\MCP\OAuth\Context;
-use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
+use WPMedia\PHPUnit\Integration\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\Discovery\HealthCheck::add_test
@@ -28,7 +28,7 @@ class AddTestTest extends TestCase {
 		parent::set_up();
 
 		if ( ! class_exists( 'WP_Site_Health' ) ) {
-			require_once ABSPATH . 'wp-admin/includes/class-wp-site-health.php'; // @phpstan-ignore requireOnce.fileNotFound
+			require_once ABSPATH . 'wp-admin/includes/class-wp-site-health.php';
 		}
 	}
 

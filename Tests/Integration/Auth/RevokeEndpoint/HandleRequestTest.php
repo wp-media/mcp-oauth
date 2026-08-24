@@ -6,7 +6,7 @@ namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\RevokeEndpoint;
 use WPMedia\MCP\OAuth\Auth\JWT;
 use WPMedia\MCP\OAuth\Auth\RevokeEndpoint;
 use WPMedia\MCP\OAuth\Auth\SecretManager;
-use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
+use WPMedia\PHPUnit\Integration\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\RevokeEndpoint::handle_request

@@ -5,7 +5,7 @@ namespace WPMedia\MCP\OAuth\Tests\Unit\Auth\Rewrite;
 
 use Brain\Monkey\Functions;
 use WPMedia\MCP\OAuth\Auth\Rewrite;
-use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
+use WPMedia\PHPUnit\Unit\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\Rewrite::register_oauth_rewrite_rules

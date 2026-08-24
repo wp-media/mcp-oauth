@@ -6,7 +6,7 @@ namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\ConsentEndpoint;
 use RuntimeException;
 use WPDieException;
 use WPMedia\MCP\OAuth\Auth\ConsentEndpoint;
-use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
+use WPMedia\PHPUnit\Integration\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\ConsentEndpoint::handle_request

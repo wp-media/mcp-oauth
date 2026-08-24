@@ -3,7 +3,7 @@ declare( strict_types=1 );
 
 namespace WPMedia\MCP\OAuth\Tests\Unit\Views\Render;
 
-use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
+use WPMedia\PHPUnit\Unit\TestCase;
 use WPMedia\MCP\OAuth\Views\Render;
 
 /**

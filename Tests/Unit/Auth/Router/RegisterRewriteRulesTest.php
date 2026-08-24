@@ -12,7 +12,7 @@ use WPMedia\MCP\OAuth\Auth\Rewrite;
 use WPMedia\MCP\OAuth\Auth\Router;
 use WPMedia\MCP\OAuth\Auth\TokenEndpoint;
 use WPMedia\MCP\OAuth\Context;
-use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
+use WPMedia\PHPUnit\Unit\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\Router::register_rewrite_rules

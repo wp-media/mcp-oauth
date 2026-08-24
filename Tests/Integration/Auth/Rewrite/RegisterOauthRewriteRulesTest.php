@@ -4,7 +4,7 @@ declare( strict_types=1 );
 namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\Rewrite;
 
 use WPMedia\MCP\OAuth\Auth\Rewrite;
-use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
+use WPMedia\PHPUnit\Integration\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\Rewrite::register_oauth_rewrite_rules

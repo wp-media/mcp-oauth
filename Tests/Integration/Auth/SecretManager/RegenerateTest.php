@@ -4,7 +4,7 @@ declare( strict_types=1 );
 namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\SecretManager;
 
 use WPMedia\MCP\OAuth\Auth\SecretManager;
-use WPMedia\MCP\OAuth\Tests\Integration\TestCase;
+use WPMedia\PHPUnit\Integration\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\SecretManager::regenerate

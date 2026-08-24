@@ -5,7 +5,7 @@ namespace WPMedia\MCP\OAuth\Tests\Unit\Auth\ClaudeClientVerifier;
 
 use Brain\Monkey\Functions;
 use WPMedia\MCP\OAuth\Auth\ClaudeClientVerifier;
-use WPMedia\MCP\OAuth\Tests\Unit\TestCase;
+use WPMedia\PHPUnit\Unit\TestCase;
 
 /**
  * Tests for WPMedia\MCP\OAuth\Auth\ClaudeClientVerifier::is_trusted_host

@@ -118,6 +118,28 @@ Returning a value below 1 is a deliberate way to block every cache-miss fetch,
 which disables resolution of any new `client_id`; already-cached clients are
 unaffected, since cache hits never consult the budget.
 
+### Observability
+
+Observability events are **off by default**: the MCP server is created with the
+mcp-adapter's `NullMcpObservabilityHandler`, so nothing is written on a normal
+request. The server registers on `rest_api_init`, so a verbose handler records
+at least one event per REST request, which floods `debug.log` on sites running
+with `WP_DEBUG` and `WP_DEBUG_LOG` enabled.
+
+Opt in to this library's verbose handler (events logged under the
+`[MCP][OBSERVABILITY]` scope) with:
+
+```php
+add_filter( 'wpmedia_mcp_oauth_observability_handler', function () {
+	return \WPMedia\MCP\OAuth\Transport\McpObservabilityHandler::class;
+} );
+```
+
+Any class implementing the adapter's `McpObservabilityHandlerInterface` is
+accepted; anything else falls back to the null handler. Errors are unaffected —
+they still go through `ErrorLogMcpErrorHandler` — and the `TOKEN`/`VALIDATOR`
+log scopes still trace the OAuth flow.
+
 ### Rewrite rules
 
 Rewrite rules are flushed lazily and automatically the first time `init` runs
@@ -183,10 +205,12 @@ manages is exactly what causes permission/ownership failures on other
 plugins, e.g. the WooCommerce Stripe gateway's abandoned attempt at the same
 thing). It also ships a Site Health self-check (`Auth\Discovery\HealthCheck`)
 that surfaces a "MCP OAuth discovery documents" test under **Tools → Site
-Health → Status**, which flags this exact failure mode with a `critical`
+Health → Status**, which flags this exact failure mode with a `recommended`
 status when it detects the fingerprint of the confirmed bug (a bare 404 with
-no WordPress-originated response header). The only real fix is a server-config
-change, applied by whoever controls the host/vhost:
+no WordPress-originated response header). The discovery documents are an
+optional MCP feature, so this is deliberately kept below `critical` to avoid
+raising a red alert for a non-blocking misconfiguration. The only real fix is a
+server-config change, applied by whoever controls the host/vhost:
 
 ### Apache
 
