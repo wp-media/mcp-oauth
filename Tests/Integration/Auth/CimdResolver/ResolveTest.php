@@ -285,7 +285,7 @@ class ResolveTest extends TestCase {
 		$resolver = new CimdResolver( new ClaudeClientVerifier() );
 
 		$this->assertSame( $record, $resolver->resolve( self::UNTRUSTED_CLIENT_ID, true ) );
-		$this->assertSame( 0, $this->fetch_calls, 'A cache hit must not fetch.' );
+		$this->assertSame( 0, $this->fetch_count( self::UNTRUSTED_CLIENT_ID ), 'A cache hit must not fetch.' );
 	}
 
 	/**
@@ -300,7 +300,7 @@ class ResolveTest extends TestCase {
 		$resolver = $this->stubbed_resolver( '93.184.216.34', false );
 
 		$this->assertNull( $resolver->resolve( self::UNTRUSTED_CLIENT_ID, true ) );
-		$this->assertSame( 0, $this->fetch_calls, 'An untrusted host must not be fetched unpinned.' );
+		$this->assertSame( 0, $this->fetch_count( self::UNTRUSTED_CLIENT_ID ), 'An untrusted host must not be fetched unpinned.' );
 	}
 
 	/**
@@ -318,7 +318,7 @@ class ResolveTest extends TestCase {
 
 		$this->assertIsArray( $record );
 		$this->assertTrue( $record['verified'] );
-		$this->assertSame( 1, $this->fetch_calls );
+		$this->assertSame( 1, $this->fetch_count() );
 	}
 
 	/**
