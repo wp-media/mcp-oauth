@@ -82,7 +82,9 @@ class MaybeFlushRewriteRulesTest extends TestCase {
 		$ref       = new ReflectionClass( Bootstrap::class );
 		$bootstrap = $ref->newInstanceWithoutConstructor();
 
-		$this->set_reflective_property( new Context(), 'context', $bootstrap );
+		$context = $ref->getProperty( 'context' );
+		$context->setAccessible( true );
+		$context->setValue( $bootstrap, new Context() );
 
 		return $bootstrap;
 	}
