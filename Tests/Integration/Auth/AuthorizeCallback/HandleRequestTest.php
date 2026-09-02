@@ -233,7 +233,15 @@ class HandleRequestTest extends TestCase {
 			$this->assertStringNotContainsString( '<div class="verified-badge">', $html );
 		}
 
-		$this->assertStringContainsString( '<strong>' . $client['client_name'] . '</strong> is requesting access to the MCP tools on <strong>' . $site_name . '</strong> on your behalf.', $html );
+		$strong_name = '<strong>' . $client['client_name'] . '</strong>';
+		$this->assertStringContainsString(
+			$strong_name . ' is requesting access to the MCP tools on your behalf.'
+			. ' If you approve this request, an application password (' . $strong_name . ')'
+			. ' will be created for your user and securely shared with ' . $strong_name . '.'
+			. ' ' . $strong_name . ' will then inherit your user&#039;s permissions on this website.'
+			. ' You can revoke this access at any time by revoking the application password.',
+			$html
+		);
 		$this->assertStringContainsString( '<input type="hidden" name="state" value="' . $state . '">', $html );
 		$this->assertStringContainsString( 'name="mcp_consent_nonce"', $html );
 		$this->assertStringContainsString( '<button type="submit" name="mcp_action" value="allow" class="btn btn-allow">', $html );
