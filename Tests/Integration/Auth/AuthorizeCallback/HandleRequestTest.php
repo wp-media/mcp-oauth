@@ -234,8 +234,9 @@ class HandleRequestTest extends TestCase {
 		}
 
 		$strong_name = '<strong>' . $client['client_name'] . '</strong>';
+		$strong_site = '<strong>' . $site_name . '</strong>';
 		$this->assertStringContainsString(
-			$strong_name . ' is requesting access to the MCP tools on your behalf.'
+			$strong_name . ' is requesting access to the MCP tools of ' . $strong_site . ' on your behalf.'
 			. ' If you approve this request, an application password (' . $strong_name . ')'
 			. ' will be created for your user and securely shared with ' . $strong_name . '.'
 			. ' ' . $strong_name . ' will then inherit your user&#039;s permissions on this website.'
