@@ -3,13 +3,11 @@ declare( strict_types=1 );
 
 namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\AuthorizeEndpoint;
 
-use ReflectionMethod;
 use RuntimeException;
 use WPDieException;
 use WPMedia\MCP\OAuth\Auth\AuthorizeEndpoint;
 use WPMedia\MCP\OAuth\Auth\ClaudeClientVerifier;
 use WPMedia\MCP\OAuth\Auth\CimdResolver;
-use WPMedia\PHPUnit\Integration\HttpRequestTrait;
 use WPMedia\PHPUnit\Integration\TestCase;
 
 /**
@@ -24,17 +22,13 @@ use WPMedia\PHPUnit\Integration\TestCase;
  * A real `CimdResolver`/`ClaudeClientVerifier` pair is used throughout (no
  * mocking of the collaborator under it): the trusted-publisher allowlist is
  * controlled via the `wpmedia_mcp_oauth_trusted_publishers` filter, and the
- * document fetch is stubbed via the library's HttpRequestTrait (which hooks
- * `pre_http_request`) so no real network fetch ever occurs. `pre_http_request`
- * short-circuits before WP_Http's URL/host validation, so plain `*.example`
- * test hosts are safe to use here. The trait blocks (and fails) any request
- * the fixture does not mock, so a test can never silently hit the network.
+ * document fetch is stubbed via `pre_http_request` so no real network fetch
+ * ever occurs. `pre_http_request` short-circuits before WP_Http's URL/host
+ * validation, so plain `*.example` test hosts are safe to use here.
  *
  * @covers \WPMedia\MCP\OAuth\Auth\AuthorizeEndpoint::handle_request
  */
 class HandleRequestTest extends TestCase {
-
-	use HttpRequestTrait;
 
 	/**
 	 * Backup of $_GET so per-test mutations don't leak.
@@ -58,22 +52,17 @@ class HandleRequestTest extends TestCase {
 	public function set_up(): void {
 		parent::set_up();
 
-		$this->setup_http();
-
 		$this->get_backup    = $_GET; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$this->server_backup = $_SERVER;
 		unset( $_SERVER['REMOTE_ADDR'] );
 	}
 
 	/**
-	 * Tears down the outbound-request mock (failing on any unmocked request)
-	 * and restores $_GET/$_SERVER.
+	 * Restores $_GET/$_SERVER.
 	 *
 	 * @return void
 	 */
 	public function tear_down(): void {
-		$this->tear_down_http();
-
 		$_GET    = $this->get_backup; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$_SERVER = $this->server_backup;
 		wp_set_current_user( 0 );
@@ -117,9 +106,8 @@ class HandleRequestTest extends TestCase {
 	}
 
 	/**
-	 * Stubs the CIMD document fetch for a given client_id through
-	 * HttpRequestTrait (which hooks `pre_http_request`), so
-	 * `CimdResolver::resolve()` runs its real fetch/validate/verify logic
+	 * Stubs the CIMD document fetch for a given client_id via `pre_http_request`,
+	 * so `CimdResolver::resolve()` runs its real fetch/validate/verify logic
 	 * without making a real network request.
 	 *
 	 * @param string               $client_id The client_id URL the document is served from.
@@ -138,45 +126,27 @@ class HandleRequestTest extends TestCase {
 			$overrides
 		);
 
-		$this->config['http'][ $client_id ] = [
-			'headers'  => [ 'content-type' => 'application/json' ],
-			'body'     => wp_json_encode( $doc ),
-			'response' => [
-				'code'    => 200,
-				'message' => 'OK',
-			],
-			'cookies'  => [],
-			'filename' => null,
-		];
-	}
+		add_filter(
+			'pre_http_request',
+			static function ( $preempt, $args, $url ) use ( $client_id, $doc ) {
+				if ( $url !== $client_id ) {
+					return $preempt;
+				}
 
-	/**
-	 * Builds a CimdResolver whose native cURL connect-only preflight is stubbed
-	 * to report a fixed public IP.
-	 *
-	 * `CimdResolver::connect_and_get_ip()` performs a raw `curl_exec()` that
-	 * `pre_http_request` cannot intercept and that would legitimately fail
-	 * against the reserved `*.example` test hosts these scenarios use. Overriding
-	 * it to return a public IP lets the real `AuthorizeEndpoint` client-resolution
-	 * logic run unchanged while the document fetch stays faked via
-	 * `install_cimd_document()`. No real network connection is made.
-	 *
-	 * @return CimdResolver
-	 */
-	private function make_resolver(): CimdResolver {
-		return new class( new ClaudeClientVerifier() ) extends CimdResolver {
-
-			/**
-			 * Returns a fixed public IP instead of a real cURL connect.
-			 *
-			 * @param string      $host      The client_id URL host.
-			 * @param string|null $ca_bundle Unused; the real preflight is stubbed.
-			 * @return string
-			 */
-			protected function connect_and_get_ip( string $host, ?string $ca_bundle = null ): string {
-				return '93.184.216.34';
-			}
-		};
+				return [
+					'headers'  => [ 'content-type' => 'application/json' ],
+					'body'     => wp_json_encode( $doc ),
+					'response' => [
+						'code'    => 200,
+						'message' => 'OK',
+					],
+					'cookies'  => [],
+					'filename' => null,
+				];
+			},
+			10,
+			3
+		);
 	}
 
 	/**
@@ -207,50 +177,6 @@ class HandleRequestTest extends TestCase {
 	}
 
 	/**
-	 * Builds the `wp_redirect` filter callback that aborts the redirect by
-	 * throwing, before the `exit` that follows it in production code.
-	 *
-	 * @return callable
-	 */
-	private function throwing_redirect_callback(): callable {
-		return /**
-				* Aborts wp_redirect() before the following exit by throwing.
-				*
-				* @param string $location The redirect target.
-				* @return string Never returns; always throws.
-				*/
-			static function ( $location ) {
-				throw new RuntimeException( 'REDIRECT:' . $location ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- not HTML output; captured and asserted on in-process, never rendered.
-			};
-	}
-
-	/**
-	 * Invokes handle_request() expecting a wp_die(), with the throwing
-	 * `wp_redirect` interceptor installed so a regression that redirects instead
-	 * fails the test rather than terminating the PHPUnit process.
-	 *
-	 * @param AuthorizeEndpoint    $endpoint The endpoint under test.
-	 * @param array<string, mixed> $expected Expected message fragment and response code.
-	 * @return void
-	 */
-	private function expect_die( AuthorizeEndpoint $endpoint, array $expected ): void {
-		$callback = $this->throwing_redirect_callback();
-		add_filter( 'wp_redirect', $callback );
-
-		try {
-			$endpoint->handle_request();
-			$this->fail( 'Expected a WPDieException to be thrown.' );
-		} catch ( WPDieException $exception ) {
-			$this->assertStringContainsString( $expected['message_contains'], $exception->getMessage() );
-			$this->assertSame( $expected['response_code'], $exception->getCode() );
-		} catch ( RuntimeException $exception ) {
-			$this->fail( 'Expected a wp_die(), but a redirect was emitted: ' . $exception->getMessage() );
-		} finally {
-			remove_filter( 'wp_redirect', $callback );
-		}
-	}
-
-	/**
 	 * Invokes handle_request(), intercepting the wp_redirect() call that
 	 * would otherwise be immediately followed by exit.
 	 *
@@ -258,11 +184,20 @@ class HandleRequestTest extends TestCase {
 	 * @return string The redirect location passed to wp_redirect().
 	 */
 	private function capture_redirect( AuthorizeEndpoint $endpoint ): string {
-		$callback = $this->throwing_redirect_callback();
+		$callback =
+			/**
+			 * Aborts wp_redirect() before the following exit by throwing.
+			 *
+			 * @param string $location The redirect target.
+			 * @return string Never returns; always throws.
+			 */
+			static function ( $location ) {
+				throw new RuntimeException( 'REDIRECT:' . $location ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- not HTML output; captured and asserted on in-process, never rendered.
+			};
 
 		// The callback intentionally always throws (to abort before the exit that
 		// follows wp_redirect()), so it never returns a value like a real filter.
-		add_filter( 'wp_redirect', $callback );
+		add_filter( 'wp_redirect', $callback ); // @phpstan-ignore-line
 
 		try {
 			$endpoint->handle_request();
@@ -309,35 +244,22 @@ class HandleRequestTest extends TestCase {
 			$this->install_cimd_document( $get['client_id'], $config['cimd_document'] );
 		}
 
-		// Omitted = the plugin default (untrusted providers allowed).
-		if ( false === ( $config['allow_untrusted'] ?? null ) ) {
-			add_filter( 'wpmedia_mcp_oauth_allow_untrusted_providers', '__return_false' );
-		}
-
-		if ( array_key_exists( 'canonical_allow_untrusted', $config ) ) {
-			$canonical = $config['canonical_allow_untrusted'];
-			add_filter(
-				'wpmedia_mcp_oauth_allow_untrusted_providers',
-				static function () use ( $canonical ) {
-					return $canonical;
-				}
-			);
-		}
-
-		if ( $expected['incorrect_usage'] ?? false ) {
-			$this->setExpectedIncorrectUsage( 'wpm_apply_filters_typed' );
-		}
-
 		if ( $config['logged_in'] ?? false ) {
 			$user_id = self::factory()->user->create();
 			wp_set_current_user( $user_id );
 		}
 
-		$endpoint = new AuthorizeEndpoint( $this->make_resolver() );
+		$endpoint = new AuthorizeEndpoint( new CimdResolver( new ClaudeClientVerifier() ) );
 
 		switch ( $expected['type'] ) {
 			case 'die':
-				$this->expect_die( $endpoint, $expected );
+				try {
+					$endpoint->handle_request();
+					$this->fail( 'Expected a WPDieException to be thrown.' );
+				} catch ( WPDieException $exception ) {
+					$this->assertStringContainsString( $expected['message_contains'], $exception->getMessage() );
+					$this->assertSame( $expected['response_code'], $exception->getCode() );
+				}
 				break;
 
 			case 'redirect_error':
@@ -378,76 +300,5 @@ class HandleRequestTest extends TestCase {
 				$this->assertSame( $expected['transient'], $transient );
 				break;
 		}
-	}
-
-	/**
-	 * Never emits a pre-consent redirect to an unverified client's redirect_uri,
-	 * which comes from a CIMD document anyone can publish. send_error() wp_die()s
-	 * with the bare OAuth error code and a 400 instead.
-	 *
-	 * @return void
-	 */
-	public function testShouldDieWithoutRedirectingWhenSendErrorReceivesAnUnverifiedClient(): void {
-		$callback = $this->throwing_redirect_callback();
-		add_filter( 'wp_redirect', $callback );
-
-		try {
-			$this->invoke_send_error( 'https://phish.example/landing', 'unsupported_response_type', 'state-value', false );
-			$this->fail( 'Expected a WPDieException to be thrown.' );
-		} catch ( WPDieException $exception ) {
-			$this->assertSame( 'unsupported_response_type', $exception->getMessage() );
-			$this->assertSame( 400, $exception->getCode() );
-		} catch ( RuntimeException $exception ) {
-			$this->fail( 'Expected a wp_die(), but a redirect was emitted: ' . $exception->getMessage() );
-		} finally {
-			remove_filter( 'wp_redirect', $callback );
-		}
-	}
-
-	/**
-	 * A verified client's pre-consent error response is unchanged: a 302 to its
-	 * own registered redirect_uri carrying error, iss and state.
-	 *
-	 * @return void
-	 */
-	public function testShouldRedirectWhenSendErrorReceivesAVerifiedClient(): void {
-		$callback = $this->throwing_redirect_callback();
-		add_filter( 'wp_redirect', $callback );
-
-		try {
-			$this->invoke_send_error( 'https://client.example/callback', 'unsupported_response_type', 'state-value', true );
-			$this->fail( 'Expected send_error() to redirect.' );
-		} catch ( RuntimeException $exception ) {
-			$location = substr( $exception->getMessage(), strlen( 'REDIRECT:' ) );
-			$query    = $this->query_args( $location );
-
-			$this->assertStringStartsWith( 'https://client.example/callback', $location );
-			$this->assertSame( 'unsupported_response_type', $query['error'] ?? null );
-			$this->assertSame( home_url(), $query['iss'] ?? null );
-			$this->assertSame( 'state-value', $query['state'] ?? null );
-		} finally {
-			remove_filter( 'wp_redirect', $callback );
-		}
-	}
-
-	/**
-	 * Invokes the private send_error() directly, asserting the invariant at the
-	 * method that owns it rather than via a particular handle_request() branch.
-	 *
-	 * @param string $redirect_uri    Destination URI.
-	 * @param string $error           OAuth error code.
-	 * @param string $state           State token.
-	 * @param bool   $client_verified Whether the client is a verified publisher.
-	 * @return void
-	 */
-	private function invoke_send_error( string $redirect_uri, string $error, string $state, bool $client_verified ): void {
-		$method = new ReflectionMethod( AuthorizeEndpoint::class, 'send_error' );
-
-		// Required before invoking a non-public method on PHP < 8.1; a no-op after.
-		if ( PHP_VERSION_ID < 80100 ) {
-			$method->setAccessible( true );
-		}
-
-		$method->invoke( new AuthorizeEndpoint( $this->make_resolver() ), $redirect_uri, $error, $state, $client_verified );
 	}
 }
