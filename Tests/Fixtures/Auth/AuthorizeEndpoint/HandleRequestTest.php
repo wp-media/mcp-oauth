@@ -7,7 +7,25 @@
  * control the `wpmedia_mcp_oauth_trusted_publishers` allowlist, and
  * `config.cimd_document` (when set) stubs the fetched CIMD document for
  * `client_id`, both against the real CimdResolver/ClaudeClientVerifier.
+ *
+ * `config.allow_untrusted => false` hooks
+ * `wpmedia_mcp_oauth_allow_untrusted_providers` to `__return_false`, restoring
+ * the pre-1.x hard gate; omitting the key uses the plugin default (`true`).
+ * `config.canonical_allow_untrusted` hooks that filter to an arbitrary
+ * (possibly non-boolean) return value, paired with `expected.incorrect_usage`.
  */
+
+$wpmedia_mcp_oauth_test_unverified_transient = [
+	'client_id'             => 'https://good-client.example/app',
+	'client_name'           => 'Example App',
+	'client_uri'            => 'https://client.example',
+	'verified'              => false,
+	'publisher'             => '',
+	'redirect_uri'          => 'https://client.example/callback',
+	'code_challenge'        => 'challenge-value',
+	'code_challenge_method' => 'S256',
+	'state'                 => 'state-value',
+];
 
 return [
 	'testShouldDieWhenClientIdIsMissing'                  => [
@@ -22,14 +40,27 @@ return [
 	],
 	'testShouldDieWhenClientCannotBeResolved'             => [
 		'config'   => [
-			// No trusted-publisher registered for this host, so CimdResolver
-			// rejects the client_id before any fetch is attempted.
-			'get' => [],
+			// Untrusted host + providers disallowed: rejected before any fetch,
+			// which is why no cimd_document is needed.
+			'get'             => [],
+			'allow_untrusted' => false,
 		],
 		'expected' => [
 			'type'             => 'die',
 			'message_contains' => 'Unknown OAuth client.',
 			'response_code'    => 400,
+		],
+	],
+	'testShouldReachConsentWhenHostIsUntrustedAndUntrustedAllowed' => [
+		// Mirror of the above under the default filter: fetched, and reaches
+		// consent with verified => false in the state transient.
+		'config'   => [
+			'get'           => [],
+			'cimd_document' => [],
+		],
+		'expected' => [
+			'type'      => 'login',
+			'transient' => $wpmedia_mcp_oauth_test_unverified_transient,
 		],
 	],
 	'testShouldDieWhenClientIsNotVerified'                => [
@@ -40,11 +71,25 @@ return [
 			// isn't in the allowlist, so ClaudeClientVerifier::verify() fails.
 			'trusted_client_ids' => [],
 			'cimd_document'      => [],
+			// Required for the hard-reject; the default-filter mirror is below.
+			'allow_untrusted'    => false,
 		],
 		'expected' => [
 			'type'             => 'die',
 			'message_contains' => 'not a verified publisher',
 			'response_code'    => 400,
+		],
+	],
+	'testShouldReachConsentWhenClientIsUnverifiedAndUntrustedAllowed' => [
+		'config'   => [
+			'get'                => [],
+			'trusted_host'       => 'good-client.example',
+			'trusted_client_ids' => [],
+			'cimd_document'      => [],
+		],
+		'expected' => [
+			'type'      => 'login',
+			'transient' => $wpmedia_mcp_oauth_test_unverified_transient,
 		],
 	],
 	'testShouldDieWhenRedirectUriIsMissing'               => [
@@ -168,6 +213,53 @@ return [
 				'code_challenge_method' => 'S256',
 				'state'                 => 'state-value',
 			],
+		],
+	],
+	'testShouldDieRatherThanRedirectWhenUnverifiedClientSendsUnsupportedResponseType' => [
+		// Open-redirect closure: this branch runs before login and consent, so no
+		// 302 to an unverified client's redirect_uri may be emitted. The test
+		// installs a throwing wp_redirect interceptor so a regression fails loudly.
+		'config'   => [
+			'get'           => [
+				'redirect_uri'  => 'https://phish.example/landing',
+				'response_type' => 'token',
+			],
+			'cimd_document' => [ 'redirect_uris' => [ 'https://phish.example/landing' ] ],
+		],
+		'expected' => [
+			'type'             => 'die',
+			'message_contains' => 'unsupported_response_type',
+			'response_code'    => 400,
+		],
+	],
+	'testShouldDieRatherThanRedirectWhenUnverifiedClientOmitsCodeChallengeMethod' => [
+		'config'   => [
+			'get'           => [
+				'redirect_uri'          => 'https://phish.example/landing',
+				'code_challenge_method' => null,
+			],
+			'cimd_document' => [ 'redirect_uris' => [ 'https://phish.example/landing' ] ],
+		],
+		'expected' => [
+			'type'             => 'die',
+			'message_contains' => 'invalid_request',
+			'response_code'    => 400,
+		],
+	],
+	'testShouldFallBackToTheSeedWhenCanonicalFilterReturnsNonBoolean' => [
+		// wpm_apply_filters_typed() reports the misuse and returns the seed, so a
+		// non-boolean return leaves the effective policy at the default (true).
+		'config'   => [
+			'get'                       => [],
+			'trusted_host'              => 'good-client.example',
+			'trusted_client_ids'        => [],
+			'cimd_document'             => [],
+			'canonical_allow_untrusted' => 'nope',
+		],
+		'expected' => [
+			'type'            => 'login',
+			'incorrect_usage' => true,
+			'transient'       => $wpmedia_mcp_oauth_test_unverified_transient,
 		],
 	],
 	'testShouldAcceptLoopbackRedirectUriRegardlessOfPort' => [

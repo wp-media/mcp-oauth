@@ -3,7 +3,6 @@ declare( strict_types=1 );
 
 namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\AuthorizeCallback;
 
-use ReflectionMethod;
 use RuntimeException;
 use WPDieException;
 use WPMedia\MCP\OAuth\Auth\AuthorizeCallback;
@@ -168,7 +167,7 @@ class HandleRequestTest extends TestCase {
 	 */
 	public function consentScreenClientProvider(): array {
 		return [
-			'verified publisher'   => [
+			'verified publisher'                  => [
 				'client'   => [
 					'client_id'   => 'https://claude.ai/oauth/client',
 					'client_name' => 'Claude',
@@ -177,10 +176,11 @@ class HandleRequestTest extends TestCase {
 					'publisher'   => 'Anthropic',
 				],
 				'expected' => [
-					'verified_badge_present' => true,
+					'verified_badge_present'     => true,
+					'unverified_warning_present' => false,
 				],
 			],
-			'unverified publisher' => [
+			'unverified publisher'                => [
 				'client'   => [
 					'client_id'   => 'https://example.com/oauth/client',
 					'client_name' => 'Example Client',
@@ -189,7 +189,24 @@ class HandleRequestTest extends TestCase {
 					'publisher'   => '',
 				],
 				'expected' => [
-					'verified_badge_present' => false,
+					'verified_badge_present'     => false,
+					'unverified_warning_present' => true,
+				],
+			],
+			'verified publisher, empty publisher' => [
+				// The badge needs a non-empty publisher name, so neither the badge
+				// nor the warning is rendered: verified === true is what suppresses
+				// the warning, not the presence of a publisher name.
+				'client'   => [
+					'client_id'   => 'https://claude.ai/oauth/client',
+					'client_name' => 'Claude',
+					'client_uri'  => 'https://claude.ai',
+					'verified'    => true,
+					'publisher'   => '',
+				],
+				'expected' => [
+					'verified_badge_present'     => false,
+					'unverified_warning_present' => false,
 				],
 			],
 		];
@@ -208,14 +225,8 @@ class HandleRequestTest extends TestCase {
 		$state       = 'test-state-token';
 		$site_name   = (string) get_bloginfo( 'name' );
 		$callback    = new AuthorizeCallback( new Render() );
-		$method      = new ReflectionMethod( AuthorizeCallback::class, 'output_consent_screen' );
+		$method      = $this->get_reflective_method( 'output_consent_screen', AuthorizeCallback::class );
 		$display_uri = '' !== $client['client_uri'] ? $client['client_uri'] : $client['client_id'];
-
-		// PHP < 8.1 requires setAccessible() before invoking a non-public method;
-		// from 8.1 it is a no-op, so we only call it on the older versions.
-		if ( PHP_VERSION_ID < 80100 ) {
-			$method->setAccessible( true );
-		}
 
 		ob_start();
 		$method->invoke( $callback, $state, $client );
@@ -231,6 +242,14 @@ class HandleRequestTest extends TestCase {
 			$this->assertStringContainsString( 'Verified publisher: ' . $client['publisher'], $html );
 		} else {
 			$this->assertStringNotContainsString( '<div class="verified-badge">', $html );
+		}
+
+		if ( $expected['unverified_warning_present'] ) {
+			$this->assertStringContainsString( '<div class="unverified-warning">', $html );
+			$this->assertStringContainsString( 'This app is not a verified publisher. Only continue if you trust it.', $html );
+		} else {
+			$this->assertStringNotContainsString( '<div class="unverified-warning">', $html );
+			$this->assertStringNotContainsString( 'not a verified publisher', $html );
 		}
 
 		$strong_name = '<strong>' . $client['client_name'] . '</strong>';
