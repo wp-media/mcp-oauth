@@ -84,17 +84,6 @@ declare(strict_types=1);
 			padding: 2px 6px;
 			margin-top: 8px;
 		}
-		.unverified-warning {
-			color: #d63638;
-			background: #fcf0f1;
-			border: 1px solid #d63638;
-			border-radius: 3px;
-			padding: 12px 14px;
-			margin-bottom: 20px;
-			font-size: .8rem;
-			font-weight: 600;
-			line-height: 1.45;
-		}
 		.scope-text {
 			font-size: .875rem;
 			color: #3c434a;
@@ -133,12 +122,6 @@ declare(strict_types=1);
 	<div class="consent-card">
 		<h1><?php esc_html_e( 'Authorize access to your site?', 'mcp-oauth' ); ?></h1>
 
-		<?php if ( ! $data['verified'] ) : ?>
-			<div class="unverified-warning">
-				<?php esc_html_e( 'This app is not a verified publisher. Only continue if you trust it.', 'mcp-oauth' ); ?>
-			</div>
-		<?php endif; ?>
-
 		<div class="client-block">
 			<div class="client-name">
 				<?php if ( '' !== $data['display_href'] ) : ?>
@@ -166,10 +149,11 @@ declare(strict_types=1);
 		<p class="scope-text">
 			<?php
 			printf(
-				/* translators: 1: client name, 2: site name */
-				esc_html__( '%1$s is requesting access to the MCP tools on %2$s on your behalf.', 'mcp-oauth' ),
+				/* translators: 1: client name, 2: site name, 3: application password name */
+				esc_html__( '%1$s is requesting access to the MCP tools of %2$s on your behalf. If you approve this request, an application password (%3$s) will be created for your user and securely shared with %1$s. %1$s will then inherit your user\'s permissions on this website. You can revoke this access at any time by revoking the application password.', 'mcp-oauth' ),
 				'<strong>' . esc_html( $data['client_name'] ) . '</strong>',
-				'<strong>' . esc_html( $data['site_name'] ) . '</strong>'
+				'<strong>' . esc_html( $data['site_name'] ) . '</strong>',
+				'<strong>' . esc_html( $data['client_name'] ) . '</strong>'
 			);
 			?>
 		</p>
