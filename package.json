@@ -7,6 +7,6 @@
     "test-unit": "wp-env run tests-cli --env-cwd=wp-content/plugins/mcp-oauth composer test-unit"
   },
   "devDependencies": {
-    "@wordpress/env": "^10"
+    "@wordpress/env": "^11"
   }
 }
