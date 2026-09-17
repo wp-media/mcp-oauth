@@ -14,6 +14,7 @@ declare( strict_types=1 );
 namespace WPMedia\MCP\OAuth;
 
 use WP\MCP\Core\McpAdapter;
+use WPMedia\MCP\OAuth\Auth\AppPasswordScopeEnforcer;
 use WPMedia\MCP\OAuth\Auth\AuthorizeCallback;
 use WPMedia\MCP\OAuth\Auth\AuthorizeEndpoint;
 use WPMedia\MCP\OAuth\Auth\CimdResolver;
@@ -116,6 +117,7 @@ final class Bootstrap {
 		$this->context = new Context();
 
 		$this->register_auth_router();
+		$this->register_app_password_scope_enforcer();
 		$this->register_discovery( $this->context );
 		$this->register_discovery_health_check( $this->context );
 		$this->register_transport( $this->context );
@@ -153,6 +155,22 @@ final class Bootstrap {
 		add_filter( 'query_vars', [ $router, 'add_query_vars' ] );
 		add_action( 'template_redirect', [ $router, 'handle_request' ] );
 		add_action( 'wp_delete_application_password', [ $router, 'purge_refresh_jti_meta' ], 10, 2 );
+	}
+
+	/**
+	 * Wire the Application Password scope enforcer.
+	 *
+	 * Rejects this library's own Application Passwords when used to
+	 * authenticate against any REST route other than the MCP endpoint —
+	 * independent of, and in addition to, the JWT checks in
+	 * OAuthHttpTransport, which guard the JWT rather than the raw credential.
+	 *
+	 * @return void
+	 */
+	private function register_app_password_scope_enforcer(): void {
+		$enforcer = new AppPasswordScopeEnforcer();
+
+		add_filter( 'rest_authentication_errors', [ $enforcer, 'maybe_block_out_of_scope' ], 10, 1 );
 	}
 
 	/**
