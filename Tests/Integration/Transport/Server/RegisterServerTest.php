@@ -1,0 +1,51 @@
+<?php
+declare( strict_types=1 );
+
+namespace WPMedia\MCP\OAuth\Tests\Integration\Transport\Server;
+
+use WP\MCP\Core\McpAdapter;
+use WPMedia\MCP\OAuth\Context;
+use WPMedia\MCP\OAuth\Transport\Server;
+use WPMedia\PHPUnit\Integration\TestCase;
+
+/**
+ * Tests for WPMedia\MCP\OAuth\Transport\Server::register_server
+ *
+ * Regression test for issue #60: `mcp_adapter_init` is a public action, and a
+ * third party re-firing it must not cause a second create_server() call for
+ * the same server ID. The test relies on WP_UnitTestCase's default behavior
+ * of failing on any *unexpected* `_doing_it_wrong()` call — no
+ * setExpectedIncorrectUsage() is registered for `create_server`, so a
+ * regression here fails via that native mechanism, not a custom assertion.
+ *
+ * @covers \WPMedia\MCP\OAuth\Transport\Server::register_server
+ */
+class RegisterServerTest extends TestCase {
+
+	/**
+	 * Fires `mcp_adapter_init` twice and asserts the server survives both
+	 * firings without triggering a duplicate-server-id notice.
+	 *
+	 * The production `ServerRegistrar` hook wired by `Bootstrap` on the same
+	 * action is also still attached and will run here too; that is harmless
+	 * and does not need to be unhooked, since it is guarded the same way.
+	 *
+	 * @return void
+	 */
+	public function testShouldRegisterServerOnlyOnceWhenActionFiresTwice(): void {
+		$adapter = McpAdapter::instance();
+		$server  = new Server( new Context() );
+
+		add_action(
+			'mcp_adapter_init',
+			static function () use ( $server ) {
+				$server->register_server();
+			}
+		);
+
+		do_action( 'mcp_adapter_init', $adapter );
+		do_action( 'mcp_adapter_init', $adapter );
+
+		$this->assertNotNull( $adapter->get_server( 'mcp-oauth-server' ) );
+	}
+}
