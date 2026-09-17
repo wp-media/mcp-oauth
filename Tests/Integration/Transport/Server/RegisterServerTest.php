@@ -43,7 +43,9 @@ class RegisterServerTest extends TestCase {
 			}
 		);
 
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- firing the mcp-adapter package's own action to simulate a third-party re-fire, not defining a new hook.
 		do_action( 'mcp_adapter_init', $adapter );
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- firing the mcp-adapter package's own action to simulate a third-party re-fire, not defining a new hook.
 		do_action( 'mcp_adapter_init', $adapter );
 
 		$this->assertNotNull( $adapter->get_server( 'mcp-oauth-server' ) );
