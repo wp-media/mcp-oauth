@@ -17,7 +17,6 @@ declare( strict_types=1 );
 namespace WPMedia\MCP\OAuth\Auth;
 
 use WP_Error;
-use WPMedia\MCP\OAuth\Logging\McpLogger;
 
 /**
  * Scopes this library's Application Passwords to the MCP REST route.
@@ -71,16 +70,6 @@ class AppPasswordScopeEnforcer {
 			// Not one of ours (foreign Application Password) — untouched.
 			return $result;
 		}
-
-		McpLogger::log(
-			'SCOPE',
-			'blocked: MCP Application Password used off the MCP route',
-			[
-				'user_id'       => $user_id,
-				'app_pass_uuid' => $uuid,
-				'route'         => $current_route,
-			]
-		);
 
 		return new WP_Error(
 			'mcp_oauth_app_password_out_of_scope',
