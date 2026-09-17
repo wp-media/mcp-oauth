@@ -135,10 +135,7 @@ class MaybeBlockOutOfScopeTest extends TestCase {
 	public function testMaybeBlockOutOfScopeAccordingToConfig( array $config, array $expected ): void {
 		$incoming_result = $this->set_up_scenario( $config );
 
-		// McpLogger::log() writes [MCP] diagnostics to output on the "blocked" path.
-		ob_start();
 		$result = ( new AppPasswordScopeEnforcer() )->maybe_block_out_of_scope( $incoming_result );
-		ob_end_clean();
 
 		if ( 'blocked' === $expected['type'] ) {
 			$this->assertInstanceOf( WP_Error::class, $result );
