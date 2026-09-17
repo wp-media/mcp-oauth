@@ -11,12 +11,10 @@ use WPMedia\PHPUnit\Integration\TestCase;
 /**
  * Tests for WPMedia\MCP\OAuth\Transport\Server::register_server
  *
- * Regression test for issue #60: `mcp_adapter_init` is a public action, and a
- * third party re-firing it must not cause a second create_server() call for
- * the same server ID. The test relies on WP_UnitTestCase's default behavior
- * of failing on any *unexpected* `_doing_it_wrong()` call — no
- * setExpectedIncorrectUsage() is registered for `create_server`, so a
- * regression here fails via that native mechanism, not a custom assertion.
+ * `mcp_adapter_init` is a public action a third party can re-fire; a second
+ * firing must not cause a duplicate create_server() call for the same ID.
+ * No setExpectedIncorrectUsage() is registered, so a regression surfaces
+ * through WP_UnitTestCase's native failure on an unexpected _doing_it_wrong().
  *
  * @covers \WPMedia\MCP\OAuth\Transport\Server::register_server
  */
