@@ -9,11 +9,9 @@ use WPMedia\MCP\OAuth\Auth\TokenEndpoint;
 use WPMedia\PHPUnit\Integration\TestCase;
 
 /**
- * Tests for WPMedia\MCP\OAuth\Auth\AppPasswordScopeEnforcer::maybe_block_out_of_scope.
- *
- * Exercised against real WordPress state (Application Passwords, user meta,
- * the current-user global, and the $GLOBALS['wp']->query_vars route) rather
- * than a full REST dispatch, since the method only reads those globals.
+ * Driven against real WordPress globals (Application Passwords, user meta,
+ * current-user, route) rather than a full REST dispatch — the method only
+ * reads those globals.
  *
  * @covers \WPMedia\MCP\OAuth\Auth\AppPasswordScopeEnforcer::maybe_block_out_of_scope
  */

@@ -158,12 +158,7 @@ final class Bootstrap {
 	}
 
 	/**
-	 * Wire the Application Password scope enforcer.
-	 *
-	 * Rejects this library's own Application Passwords when used to
-	 * authenticate against any REST route other than the MCP endpoint —
-	 * independent of, and in addition to, the JWT checks in
-	 * OAuthHttpTransport, which guard the JWT rather than the raw credential.
+	 * Wire the Application Password scope enforcer onto rest_authentication_errors.
 	 *
 	 * @return void
 	 */

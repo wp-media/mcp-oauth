@@ -7,21 +7,15 @@ use WPMedia\MCP\OAuth\Auth\AppPasswordScopeEnforcer;
 use WPMedia\PHPUnit\Integration\TestCase;
 
 /**
- * Tests for WPMedia\MCP\OAuth\Bootstrap::register_app_password_scope_enforcer
- *
- * Bootstrap::instance() (and therefore register()) has already run once for
- * the whole test process (Tests/Integration/bootstrap.php, on
- * 'muplugins_loaded'), so this asserts against the resulting global filter
- * state rather than re-invoking the singleton.
+ * Bootstrap::register() has already run for the test process (on
+ * 'muplugins_loaded'), so this asserts against the resulting global filter state.
  *
  * @covers \WPMedia\MCP\OAuth\Bootstrap::register_app_password_scope_enforcer
  */
 class RegisterAppPasswordScopeEnforcerTest extends TestCase {
 
 	/**
-	 * A missing wiring would silently disable the whole Application Password
-	 * scoping protection, so this is asserted explicitly rather than relying
-	 * on the enforcer's own unit coverage.
+	 * Missing wiring would silently disable the scoping protection entirely.
 	 *
 	 * @return void
 	 */

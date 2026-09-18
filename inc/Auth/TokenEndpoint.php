@@ -21,12 +21,10 @@ class TokenEndpoint {
 	use ParseBodyTrait;
 
 	/**
-	 * User-meta key prefix storing the currently valid refresh-token id (jti)
-	 * for a session. The session is identified by its Application Password UUID,
-	 * so the full key is REFRESH_JTI_META_PREFIX . $app_pass_uuid.
-	 *
-	 * AppPasswordScopeEnforcer also relies on this meta's presence as its
-	 * ownership marker — do not remove or rename without updating it too.
+	 * User-meta key prefix for a session's current refresh-token id (jti), keyed
+	 * by Application Password UUID: REFRESH_JTI_META_PREFIX . $app_pass_uuid.
+	 * AppPasswordScopeEnforcer also treats this meta's presence as its ownership
+	 * marker — don't remove or rename without updating it.
 	 */
 	const REFRESH_JTI_META_PREFIX = 'mcp_refresh_jti_';
 
