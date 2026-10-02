@@ -95,6 +95,12 @@ are re-flushed on the next request.
   binds every WordPress hook directly (`add_action`/`add_filter`).
 - **`Auth\Router`** — dispatches `/oauth/{authorize,authorize-callback,token,consent,revoke}`
   to their respective endpoint handlers.
+- **`Auth\AppPasswordScopeEnforcer`** — hooks `wp_authenticate_application_password_errors`
+  to reject this library's own Application Passwords when authenticated (REST or
+  XML-RPC) against any route other than the MCP endpoint (`401`,
+  `mcp_oauth_app_password_out_of_scope`). Independent of, and in addition to, the
+  JWT `aud`/`iss`/expiry checks in `Transport\OAuthHttpTransport`, which guard the
+  JWT rather than the raw credential.
 - **`Auth\Discovery\Endpoints`** — serves the `/.well-known/oauth-protected-resource`
   and `/.well-known/oauth-authorization-server` RFC discovery documents.
 - **`Auth\Discovery\HealthCheck`** — a WordPress Site Health `direct` test that
