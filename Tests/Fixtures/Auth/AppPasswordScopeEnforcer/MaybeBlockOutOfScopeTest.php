@@ -2,17 +2,16 @@
 /**
  * Scenarios for MaybeBlockOutOfScopeTest.
  *
- * Keys — route: 'mcp' | 'other'. user: 'none' | 'authenticated' | 'owned'
- * (app password with the mcp_refresh_jti_ marker) | 'foreign' (without).
- * incoming_result: 'null' | 'wp_error' | 'true'.
+ * Keys — route: 'mcp' | 'other'. ownership: 'owned' (app password with the
+ * mcp_refresh_jti_ marker) | 'foreign' (without) | 'no_uuid' (item missing its
+ * uuid). expected.type: 'blocked' | 'allowed'.
  */
 
 return [
 	'testShouldBlockWhenOwnedAppPasswordUsedOffMcpRoute'   => [
 		'config'   => [
-			'route'           => 'other',
-			'user'            => 'owned',
-			'incoming_result' => 'null',
+			'route'     => 'other',
+			'ownership' => 'owned',
 		],
 		'expected' => [
 			'type' => 'blocked',
@@ -20,9 +19,8 @@ return [
 	],
 	'testShouldAllowWhenOwnedAppPasswordUsedOnMcpRoute'    => [
 		'config'   => [
-			'route'           => 'mcp',
-			'user'            => 'owned',
-			'incoming_result' => 'null',
+			'route'     => 'mcp',
+			'ownership' => 'owned',
 		],
 		'expected' => [
 			'type' => 'allowed',
@@ -30,62 +28,29 @@ return [
 	],
 	'testShouldAllowWhenForeignAppPasswordUsedOffMcpRoute' => [
 		'config'   => [
-			'route'           => 'other',
-			'user'            => 'foreign',
-			'incoming_result' => 'null',
+			'route'     => 'other',
+			'ownership' => 'foreign',
 		],
 		'expected' => [
 			'type' => 'allowed',
 		],
 	],
-	'testShouldAllowWhenNoApplicationPasswordAuth'         => [
+	'testShouldAllowWhenAppPasswordHasNoUuidOffMcpRoute'   => [
 		'config'   => [
-			'route'           => 'other',
-			'user'            => 'authenticated',
-			'incoming_result' => 'null',
+			'route'     => 'other',
+			'ownership' => 'no_uuid',
 		],
 		'expected' => [
 			'type' => 'allowed',
 		],
 	],
-	'testShouldAllowWhenUnauthenticatedUser'               => [
+	'testShouldAllowWhenForeignAppPasswordUsedOnMcpRoute'  => [
 		'config'   => [
-			'route'           => 'other',
-			'user'            => 'none',
-			'incoming_result' => 'null',
+			'route'     => 'mcp',
+			'ownership' => 'foreign',
 		],
 		'expected' => [
 			'type' => 'allowed',
-		],
-	],
-	'testShouldReturnResultUnchangedWhenRouteIsMcpEndpoint' => [
-		'config'   => [
-			'route'           => 'mcp',
-			'user'            => 'none',
-			'incoming_result' => 'null',
-		],
-		'expected' => [
-			'type' => 'allowed',
-		],
-	],
-	'testShouldPreserveIncomingWpErrorUnchanged'           => [
-		'config'   => [
-			'route'           => 'other',
-			'user'            => 'owned',
-			'incoming_result' => 'wp_error',
-		],
-		'expected' => [
-			'type' => 'unchanged',
-		],
-	],
-	'testShouldPreserveIncomingSuccessResultUnchanged'     => [
-		'config'   => [
-			'route'           => 'other',
-			'user'            => 'owned',
-			'incoming_result' => 'true',
-		],
-		'expected' => [
-			'type' => 'unchanged',
 		],
 	],
 ];

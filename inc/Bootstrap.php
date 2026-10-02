@@ -158,14 +158,14 @@ final class Bootstrap {
 	}
 
 	/**
-	 * Wire the Application Password scope enforcer onto rest_authentication_errors.
+	 * Wire the Application Password scope enforcer onto wp_authenticate_application_password_errors.
 	 *
 	 * @return void
 	 */
 	private function register_app_password_scope_enforcer(): void {
 		$enforcer = new AppPasswordScopeEnforcer();
 
-		add_filter( 'rest_authentication_errors', [ $enforcer, 'maybe_block_out_of_scope' ], 10, 1 );
+		add_action( 'wp_authenticate_application_password_errors', [ $enforcer, 'maybe_block_out_of_scope' ], 10, 3 );
 	}
 
 	/**

@@ -19,15 +19,15 @@ class RegisterAppPasswordScopeEnforcerTest extends TestCase {
 	 *
 	 * @return void
 	 */
-	public function testShouldRegisterEnforcerOnRestAuthenticationErrors(): void {
-		$this->assertNotFalse( has_filter( 'rest_authentication_errors' ) );
+	public function testShouldRegisterEnforcerOnAppPasswordAuthenticationErrors(): void {
+		$this->assertNotFalse( has_action( 'wp_authenticate_application_password_errors' ) );
 
 		global $wp_filter;
 
 		$found = false;
 
-		if ( isset( $wp_filter['rest_authentication_errors'] ) ) {
-			foreach ( $wp_filter['rest_authentication_errors']->callbacks as $callbacks ) {
+		if ( isset( $wp_filter['wp_authenticate_application_password_errors'] ) ) {
+			foreach ( $wp_filter['wp_authenticate_application_password_errors']->callbacks as $callbacks ) {
 				foreach ( $callbacks as $callback ) {
 					$function = $callback['function'];
 
@@ -38,6 +38,6 @@ class RegisterAppPasswordScopeEnforcerTest extends TestCase {
 			}
 		}
 
-		$this->assertTrue( $found, 'AppPasswordScopeEnforcer::maybe_block_out_of_scope is not registered on rest_authentication_errors.' );
+		$this->assertTrue( $found, 'AppPasswordScopeEnforcer::maybe_block_out_of_scope is not registered on wp_authenticate_application_password_errors.' );
 	}
 }
