@@ -14,14 +14,14 @@
 	"config": {
 		"sort-packages": true,
         "allow-plugins": {
+            "automattic/jetpack-autoloader": false,
             "dealerdirect/phpcodesniffer-composer-installer": true,
 			"phpstan/extension-installer": true
         }
     },
     "require": {
         "php" : ">=7.4",
-		"wp-media/apply-filters-typed": "^1.0",
-		"wordpress/mcp-adapter": "^0.5"
+		"wp-media/apply-filters-typed": "^1.0"
     },
     "require-dev": {
 		"php": ">=7.4",
@@ -33,9 +33,13 @@
 		"phpstan/phpstan-phpunit": "^2.0",
 		"szepeviktor/phpstan-wordpress": "^2.0",
 		"roave/security-advisories": "dev-master",
+		"wordpress/mcp-adapter": "^0.7",
 		"wp-coding-standards/wpcs": "^3",
 		"wp-media/phpunit": "^3"
     },
+	"suggest": {
+		"wordpress/mcp-adapter": "Install and activate the MCP Adapter plugin (https://wordpress.org/plugins/mcp-adapter/)"
+	},
     "autoload": {
 		"psr-4": {
 			"WPMedia\\MCP\\OAuth\\": "inc/"
