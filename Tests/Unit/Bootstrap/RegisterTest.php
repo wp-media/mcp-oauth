@@ -44,6 +44,7 @@ class RegisterTest extends TestCase {
 			if ( isset( $prefixes[ self::ADAPTER_PREFIX ] ) ) {
 				$this->adapter_mapping = [ $loader, $prefixes[ self::ADAPTER_PREFIX ] ];
 				$loader->setPsr4( self::ADAPTER_PREFIX, [] );
+				break;
 			}
 		}
 	}
@@ -56,6 +57,11 @@ class RegisterTest extends TestCase {
 	protected function tear_down() {
 		if ( null !== $this->adapter_mapping ) {
 			$this->adapter_mapping[0]->setPsr4( self::ADAPTER_PREFIX, $this->adapter_mapping[1] );
+
+			// Forget the lookup miss the loader cached while the prefix was hidden.
+			( function () {
+				unset( $this->missingClasses[ McpAdapter::class ] ); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Composer's property.
+			} )->call( $this->adapter_mapping[0] );
 		}
 
 		parent::tear_down();
