@@ -1,7 +1,7 @@
 # MCP OAuth
 
 OAuth 2.1 + Client ID Metadata Document (CIMD) authentication layer for the
-[`wordpress/mcp-adapter`](https://github.com/wordpress/mcp-adapter) package.
+[MCP Adapter](https://wordpress.org/plugins/mcp-adapter/) plugin.
 
 This library is designed to be embedded, via Composer, into one or more
 WordPress plugins. It centralizes OAuth endpoint routing, `.well-known`
@@ -15,11 +15,20 @@ never register duplicate rewrite rules or duplicate MCP servers.
 composer require wp-media/mcp-oauth
 ```
 
+The [MCP Adapter plugin](https://wordpress.org/plugins/mcp-adapter/) (0.7 or
+later) is a runtime requirement and is **not** bundled. Declare it in your
+plugin header so WordPress installs and activates it first:
+
+```php
+ * Requires Plugins: mcp-adapter
+```
+
 ## Usage
 
 Boot the library from your plugin's main file. Calling it on `plugins_loaded`
-is recommended; the hard requirement is that it runs no later than
-`rest_api_init` priority 15 (when the MCP adapter registers its servers):
+is recommended; it must run no later than `plugins_loaded`. A call made earlier
+(e.g. while your plugin file is loading) defers wiring to `plugins_loaded`, so
+plugin load order does not matter:
 
 ```php
 add_action( 'plugins_loaded', static function () {
@@ -31,6 +40,12 @@ add_action( 'plugins_loaded', static function () {
 site calls it, only the first call wires the library (rewrite rules, OAuth
 endpoint routing, discovery documents, and MCP server registration); every
 later call returns the same instance and binds nothing further.
+
+If the MCP Adapter is not loaded by `plugins_loaded`, the library wires nothing:
+no OAuth endpoints, discovery documents, rewrite rules or MCP server. Do not
+gate the call on `class_exists( \WP\MCP\Core\McpAdapter::class )` yourself:
+evaluated while your plugin file loads, it is false whenever the adapter
+plugin loads after yours.
 
 The OAuth server is enabled by default. Disable it with:
 
@@ -89,6 +104,20 @@ flag), so no activation hook is required. If your plugin flips the
 screen), call `Bootstrap::schedule_rewrite_flush()` afterwards so the rules
 are re-flushed on the next request.
 
+## Upgrading to 2.0
+
+`wordpress/mcp-adapter` is no longer a Composer dependency of this library.
+
+- Install the MCP Adapter plugin and declare `Requires Plugins: mcp-adapter`.
+- Code using `WP\MCP\*` classes directly no longer gets them through this
+  library; guard it on the adapter plugin being active.
+- Drop any `class_exists( McpAdapter::class )` check around
+  `Bootstrap::instance()` (see Usage).
+- Without the adapter, OAuth rewrite rules persisted by an earlier version stay
+  in place until the next permalink flush, so `/oauth/*` and
+  `/.well-known/oauth-*` may serve the front page rather than a `404` until
+  then. They are restored automatically once the adapter is active again.
+
 ## Architecture
 
 - **`Bootstrap`** — the single entry point. Hand-wires the object graph and
@@ -101,7 +130,7 @@ are re-flushed on the next request.
   self-checks both discovery documents and reports a combined status; see
   "Hosting: `.well-known` conflicts" below.
 - **`Transport\ServerRegistrar`** — registers the MCP OAuth server (and, when
-  needed, the shared `mcp-adapter` abilities) with `wordpress/mcp-adapter`.
+  needed, the shared `mcp-adapter` abilities) with the MCP Adapter plugin.
 - **`Context`** — the single `is_enabled()` gate consulted everywhere.
 - **`Views\Render`** — generic view renderer. Loads a named template and
   executes it with `$data` in scope; used by `Auth\AuthorizeCallback` for the consent screen.
