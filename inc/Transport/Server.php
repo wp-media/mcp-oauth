@@ -9,6 +9,11 @@ use WPMedia\MCP\OAuth\Context;
 
 class Server {
 	/**
+	 * Server ID, also used as the server route.
+	 */
+	private const SERVER_ID = 'mcp-oauth-server';
+
+	/**
 	 * OAuth server context.
 	 *
 	 * @var Context
@@ -30,6 +35,9 @@ class Server {
 	 * Creates an isolated server at /wp-json/mcp/mcp-oauth-server using the custom
 	 * OAuthHttpTransport for JWT Bearer authentication.
 	 *
+	 * `mcp_adapter_init` is a public action; guard against a third party
+	 * re-firing it and calling create_server() twice for the same ID.
+	 *
 	 * @return void
 	 */
 	public function register_server(): void {
@@ -39,10 +47,14 @@ class Server {
 
 		$adapter = McpAdapter::instance();
 
+		if ( null !== $adapter->get_server( self::SERVER_ID ) ) {
+			return;
+		}
+
 		$adapter->create_server(
-			'mcp-oauth-server',
+			self::SERVER_ID,
 			'mcp',
-			'mcp-oauth-server',
+			self::SERVER_ID,
 			'MCP OAuth Server',
 			'MCP Server with OAuth 2.1 authentication',
 			'v1.0.0',
