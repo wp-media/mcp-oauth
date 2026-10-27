@@ -7,6 +7,7 @@ use ReflectionMethod;
 use RuntimeException;
 use WPDieException;
 use WPMedia\MCP\OAuth\Auth\AuthorizeCallback;
+use WPMedia\MCP\OAuth\Auth\AuthorizeEndpoint;
 use WPMedia\PHPUnit\Integration\TestCase;
 use WPMedia\MCP\OAuth\Views\Render;
 
@@ -80,7 +81,7 @@ class HandleRequestTest extends TestCase {
 	 */
 	public function testShouldHandleRequestAccordingToConfig( array $config, array $expected ): void {
 		$state     = 'test-state-token';
-		$state_key = 'mcp_oauth_state_' . $state;
+		$state_key = AuthorizeEndpoint::state_key( $state );
 
 		if ( $config['logged_in'] ) {
 			$user_id = self::factory()->user->create();

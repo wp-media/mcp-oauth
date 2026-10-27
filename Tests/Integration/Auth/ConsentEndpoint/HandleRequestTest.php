@@ -5,6 +5,7 @@ namespace WPMedia\MCP\OAuth\Tests\Integration\Auth\ConsentEndpoint;
 
 use RuntimeException;
 use WPDieException;
+use WPMedia\MCP\OAuth\Auth\AuthorizeEndpoint;
 use WPMedia\MCP\OAuth\Auth\ConsentEndpoint;
 use WPMedia\PHPUnit\Integration\TestCase;
 
@@ -157,7 +158,7 @@ class HandleRequestTest extends TestCase {
 		}
 
 		if ( $expected['consumes_state'] ) {
-			$this->assertFalse( get_transient( 'mcp_oauth_state_' . $config['state'] ), 'State transient should be consumed.' );
+			$this->assertFalse( get_transient( AuthorizeEndpoint::state_key( $config['state'] ) ), 'State transient should be consumed.' );
 		}
 
 		if ( $expected['creates_auth_code'] ) {
@@ -218,7 +219,7 @@ class HandleRequestTest extends TestCase {
 			$overrides
 		);
 
-		set_transient( 'mcp_oauth_state_' . $state, $data, 60 );
+		set_transient( AuthorizeEndpoint::state_key( $state ), $data, 60 );
 
 		return $data;
 	}

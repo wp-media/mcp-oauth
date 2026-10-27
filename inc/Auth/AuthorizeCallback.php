@@ -73,7 +73,7 @@ class AuthorizeCallback {
 			wp_die( esc_html__( 'Missing state parameter.', 'mcp-oauth' ), esc_html__( 'OAuth Error', 'mcp-oauth' ), [ 'response' => 400 ] );
 		}
 
-		$state_key  = 'mcp_oauth_state_' . $state;
+		$state_key  = AuthorizeEndpoint::stored_state_key( $state );
 		$state_data = get_transient( $state_key );
 
 		if ( false === $state_data || ! is_array( $state_data ) ) {

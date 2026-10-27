@@ -27,6 +27,32 @@ class AuthorizeEndpoint {
 	const STATE_TTL = 60;
 
 	/**
+	 * Build the transient key for a state value (hashed: transient names are capped at 172 chars).
+	 *
+	 * @param string $state The OAuth state.
+	 * @return string
+	 */
+	public static function state_key( string $state ): string {
+		return 'mcp_oauth_state_' . md5( $state );
+	}
+
+	/**
+	 * Return the key a state is stored under, falling back to the pre-hash key.
+	 *
+	 * @param string $state The OAuth state.
+	 * @return string
+	 */
+	public static function stored_state_key( string $state ): string {
+		$key = self::state_key( $state );
+
+		if ( false === get_transient( $key ) && false !== get_transient( 'mcp_oauth_state_' . $state ) ) {
+			return 'mcp_oauth_state_' . $state;
+		}
+
+		return $key;
+	}
+
+	/**
 	 * CIMD resolver used to dereference and validate the client_id URL.
 	 *
 	 * @var CimdResolver
@@ -141,7 +167,7 @@ class AuthorizeEndpoint {
 		// Persist the validated client display data alongside the PKCE state so the
 		// consent screen can be rendered after login without a second CIMD fetch.
 		set_transient(
-			'mcp_oauth_state_' . $state,
+			self::state_key( $state ),
 			[
 				'client_id'             => $client_id,
 				'client_name'           => (string) ( $client['client_name'] ?? '' ),

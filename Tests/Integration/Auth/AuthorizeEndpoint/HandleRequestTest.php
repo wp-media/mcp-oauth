@@ -285,7 +285,8 @@ class HandleRequestTest extends TestCase {
 				$query             = $this->query_args( $location );
 				$this->assertSame( $expected_callback, $query['redirect_to'] ?? null );
 
-				$transient = get_transient( 'mcp_oauth_state_' . $get['state'] );
+				wp_cache_flush(); // The callback reads it in a later request.
+				$transient = get_transient( AuthorizeEndpoint::state_key( $get['state'] ) );
 				$this->assertSame( $expected['transient'], $transient );
 				break;
 
@@ -296,7 +297,8 @@ class HandleRequestTest extends TestCase {
 				$this->assertSame( $expected_callback, $location );
 				$this->assertStringNotContainsString( 'wp-login', $location );
 
-				$transient = get_transient( 'mcp_oauth_state_' . $get['state'] );
+				wp_cache_flush(); // The callback reads it in a later request.
+				$transient = get_transient( AuthorizeEndpoint::state_key( $get['state'] ) );
 				$this->assertSame( $expected['transient'], $transient );
 				break;
 		}

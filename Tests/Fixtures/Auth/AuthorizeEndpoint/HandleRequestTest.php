@@ -147,6 +147,29 @@ return [
 			],
 		],
 	],
+	'testShouldPersistLongStateAndRedirectToLogin'        => [
+		'config'   => [
+			// Longer than a transient name can hold.
+			'get'                => [ 'state' => str_repeat( 'long-state-', 40 ) ],
+			'trusted_host'       => 'good-client.example',
+			'trusted_client_ids' => [ 'https://good-client.example/app' ],
+			'cimd_document'      => [],
+		],
+		'expected' => [
+			'type'      => 'login',
+			'transient' => [
+				'client_id'             => 'https://good-client.example/app',
+				'client_name'           => 'Example App',
+				'client_uri'            => 'https://client.example',
+				'verified'              => true,
+				'publisher'             => 'test',
+				'redirect_uri'          => 'https://client.example/callback',
+				'code_challenge'        => 'challenge-value',
+				'code_challenge_method' => 'S256',
+				'state'                 => str_repeat( 'long-state-', 40 ),
+			],
+		],
+	],
 	'testShouldRedirectDirectlyToConsentWhenAlreadyLoggedIn' => [
 		'config'   => [
 			'get'                => [],

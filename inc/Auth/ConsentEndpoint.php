@@ -53,7 +53,7 @@ class ConsentEndpoint {
 		// Nonce verification (CSRF protection) — must happen before consuming the transient.
 		check_admin_referer( 'mcp_consent_' . $state, 'mcp_consent_nonce' );
 
-		$state_key  = 'mcp_oauth_state_' . $state;
+		$state_key  = AuthorizeEndpoint::stored_state_key( $state );
 		$state_data = get_transient( $state_key );
 
 		if ( false === $state_data || ! is_array( $state_data ) ) {
