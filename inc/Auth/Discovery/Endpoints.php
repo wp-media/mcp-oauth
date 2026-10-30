@@ -96,14 +96,6 @@ class Endpoints {
 			return;
 		}
 
-		// Every OAuth endpoint and both .well-known documents are served through
-		// rewrite rules, which resolve against home_url() (the Site Address) — the
-		// same base get_rest_url() uses for the resource/audience below. Advertising
-		// them under get_site_url() (the WordPress Address) would point clients at
-		// the wrong location on installs where WordPress lives in its own directory
-		// (siteurl !== home).
-		$base_url = home_url();
-
 		McpLogger::log(
 			'DISCOVERY',
 			'request received',
@@ -114,17 +106,48 @@ class Endpoints {
 			]
 		);
 
-		if ( 'protected-resource' === $discovery ) {
-			$body = [
+		$body = $this->get_document( $discovery );
+
+		if ( null === $body ) {
+			return;
+		}
+
+		McpLogger::log( 'DISCOVERY', 'serving ' . $discovery . ' document', $body );
+		wp_send_json( $body );
+	}
+
+	/**
+	 * Build a discovery document without sending it.
+	 *
+	 * Returns the same data handle_request() serves, so a site can compare it
+	 * with, or write it to, a static file under /.well-known/ on hosts where
+	 * that path never reaches PHP. Does not check whether the server is
+	 * enabled; handle_request() does.
+	 *
+	 * @param string $document 'protected-resource' or 'authorization-server'.
+	 *
+	 * @return array<string, mixed>|null The document, or null for any other name.
+	 */
+	public function get_document( string $document ): ?array {
+		// Every OAuth endpoint and both .well-known documents are served through
+		// rewrite rules, which resolve against home_url() (the Site Address) — the
+		// same base get_rest_url() uses for the resource/audience below. Advertising
+		// them under get_site_url() (the WordPress Address) would point clients at
+		// the wrong location on installs where WordPress lives in its own directory
+		// (siteurl !== home).
+		$base_url = home_url();
+
+		if ( 'protected-resource' === $document ) {
+			return [
 				'resource'                 => get_rest_url( null, 'mcp/mcp-oauth-server' ),
 				'authorization_servers'    => [ $base_url ],
 				'bearer_methods_supported' => [ 'header' ],
 				'scopes_supported'         => [ 'mcp' ],
 			];
-			McpLogger::log( 'DISCOVERY', 'serving protected-resource document', $body );
-			wp_send_json( $body );
-		} elseif ( 'authorization-server' === $discovery ) {
-			$body = [
+		}
+
+		if ( 'authorization-server' === $document ) {
+			return [
 				'issuer'                                => $base_url,
 				'authorization_endpoint'                => $base_url . '/oauth/authorize',
 				'token_endpoint'                        => $base_url . '/oauth/token',
@@ -137,8 +160,8 @@ class Endpoints {
 				'client_id_metadata_document_supported' => true,
 				'authorization_response_iss_parameter_supported' => true,
 			];
-			McpLogger::log( 'DISCOVERY', 'serving authorization-server document', $body );
-			wp_send_json( $body );
 		}
+
+		return null;
 	}
 }
